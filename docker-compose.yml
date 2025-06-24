@@ -1,0 +1,206 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: saas_postgres
+    environment:
+      POSTGRES_DB: saas_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - saas_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: saas_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - saas_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./backend/auth-service/auth-service
+      dockerfile: Dockerfile
+    container_name: saas_auth_service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+      - SECRET_KEY=your-secret-key-change-in-production
+    ports:
+      - "5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # User Service
+  user-service:
+    build:
+      context: ./backend/user-service/user-service
+      dockerfile: Dockerfile
+    container_name: saas_user_service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+      - SECRET_KEY=your-secret-key-change-in-production
+    ports:
+      - "5002:5002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # Group Service
+  group-service:
+    build:
+      context: ./backend/group-service/group-service
+      dockerfile: Dockerfile
+    container_name: saas_group_service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+      - SECRET_KEY=your-secret-key-change-in-production
+    ports:
+      - "5003:5003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # Scoring Service
+  scoring-service:
+    build:
+      context: ./backend/scoring-service/scoring-service
+      dockerfile: Dockerfile
+    container_name: saas_scoring_service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+      - SECRET_KEY=your-secret-key-change-in-production
+    ports:
+      - "5004:5004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # Leaderboard Service
+  leaderboard-service:
+    build:
+      context: ./backend/leaderboard-service/leaderboard-service
+      dockerfile: Dockerfile
+    container_name: saas_leaderboard_service
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+      - SECRET_KEY=your-secret-key-change-in-production
+    ports:
+      - "5005:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway/api-gateway
+      dockerfile: Dockerfile
+    container_name: saas_api_gateway
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
+      - GROUP_SERVICE_URL=http://group-service:5003
+      - SCORING_SERVICE_URL=http://scoring-service:5004
+      - LEADERBOARD_SERVICE_URL=http://leaderboard-service:5005
+      - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
+      - SECRET_KEY=your-secret-key-change-in-production
+    ports:
+      - "5000:5000"
+    depends_on:
+      - auth-service
+      - user-service
+      - group-service
+      - scoring-service
+      - leaderboard-service
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # Admin Dashboard
+  admin-dashboard:
+    build:
+      context: ./frontend/admin-dashboard/admin-dashboard
+      dockerfile: Dockerfile
+    container_name: saas_admin_dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000/api
+    depends_on:
+      - api-gateway
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+  # User Dashboard
+  user-dashboard:
+    build:
+      context: ./frontend/user-dashboard/user-dashboard
+      dockerfile: Dockerfile
+    container_name: saas_user_dashboard
+    ports:
+      - "3001:3001"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000/api
+    depends_on:
+      - api-gateway
+    networks:
+      - saas_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  saas_network:
+    driver: bridge
+

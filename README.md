@@ -1,20 +1,45 @@
-# Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
+# Multi-Tenant SaaS Scoring & Leaderboard Platform
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+A secure, scalable multi-tenant SaaS platform for organizations to manage users, groups, scoring systems, and leaderboards.
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+## Architecture Overview
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+- **Backend**: Microservices architecture with Flask
+- **Frontend**: React applications (Admin & User dashboards)
+- **Database**: PostgreSQL with Redis caching
+- **Deployment**: Docker containers with Docker Compose
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+## Services
+
+### Backend Services
+- **auth-service**: Authentication, JWT tokens, password management
+- **user-service**: User CRUD, role management, org-scoped operations
+- **group-service**: Group management, membership, hierarchies
+- **scoring-service**: Score assignment, updates, aggregation
+- **leaderboard-service**: Real-time leaderboards, caching
+- **organization-service**: Organization management, settings
+- **api-gateway**: Request routing, authentication, rate limiting
+- **config-server**: Centralized configuration management
+
+### Frontend Applications
+- **admin-dashboard**: Organization admin interface
+- **user-dashboard**: End-user interface
+
+## Multi-Tenancy
+
+- Shared schema with tenant column (organization_id)
+- Complete data isolation between organizations
+- JWT-based authentication with org context
+- Role-based access control (ORG_ADMIN, USER)
+
+## Getting Started
+
+1. Clone the repository
+2. Run `docker-compose up` to start all services
+3. Access admin dashboard at http://localhost:3000
+4. Access user dashboard at http://localhost:3001
+
+## Development
+
+Each service can be developed and deployed independently. See individual service README files for specific setup instructions.
+
