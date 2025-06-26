@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  # Nginx Reverse Proxy
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: saas_nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway
+      - admin-dashboard
+      - user-dashboard
+    networks:
+      - saas_network
+    restart: unless-stopped
+
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
@@ -48,8 +64,7 @@ services:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
       - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
       - SECRET_KEY=your-secret-key-change-in-production
-    ports:
-      - "5001:5001"
+    # Removed direct port mapping - nginx will proxy to this service
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,8 +82,7 @@ services:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
       - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
       - SECRET_KEY=your-secret-key-change-in-production
-    ports:
-      - "5002:5002"
+    # Removed direct port mapping - nginx will proxy to this service
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,8 +100,7 @@ services:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
       - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
       - SECRET_KEY=your-secret-key-change-in-production
-    ports:
-      - "5003:5003"
+    # Removed direct port mapping - nginx will proxy to this service
     depends_on:
       postgres:
         condition: service_healthy
@@ -105,8 +118,7 @@ services:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
       - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
       - SECRET_KEY=your-secret-key-change-in-production
-    ports:
-      - "5004:5004"
+    # Removed direct port mapping - nginx will proxy to this service
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,8 +137,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
       - SECRET_KEY=your-secret-key-change-in-production
-    ports:
-      - "5005:5005"
+    # Removed direct port mapping - nginx will proxy to this service
     depends_on:
       postgres:
         condition: service_healthy
@@ -150,8 +161,7 @@ services:
       - LEADERBOARD_SERVICE_URL=http://leaderboard-service:5005
       - JWT_SECRET_KEY=your-jwt-secret-key-change-in-production
       - SECRET_KEY=your-secret-key-change-in-production
-    ports:
-      - "5000:5000"
+    # Removed direct port mapping - nginx will proxy to this service
     depends_on:
       - auth-service
       - user-service
@@ -168,10 +178,9 @@ services:
       context: ./frontend/admin-dashboard/admin-dashboard
       dockerfile: Dockerfile
     container_name: saas_admin_dashboard
-    ports:
-      - "3000:3000"
+    # Removed direct port mapping - nginx will proxy to this service
     environment:
-      - VITE_API_BASE_URL=http://localhost:5000/api
+      - VITE_API_BASE_URL=/api
     depends_on:
       - api-gateway
     networks:
@@ -184,10 +193,9 @@ services:
       context: ./frontend/user-dashboard/user-dashboard
       dockerfile: Dockerfile
     container_name: saas_user_dashboard
-    ports:
-      - "3001:3001"
+    # Removed direct port mapping - nginx will proxy to this service
     environment:
-      - VITE_API_BASE_URL=http://localhost:5000/api
+      - VITE_API_BASE_URL=/api
     depends_on:
       - api-gateway
     networks:
