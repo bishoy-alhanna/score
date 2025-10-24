@@ -579,6 +579,7 @@ function AppContent() {
 
 // Join Requests Management Component
 function JoinRequestsManagement() {
+  const { t } = useTranslation()
   const [joinRequests, setJoinRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -725,6 +726,7 @@ function JoinRequestsManagement() {
 
 // Users Management Component
 function UsersManagement() {
+  const { t } = useTranslation()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -1223,6 +1225,7 @@ function UsersManagement() {
 
 // Groups Management Component
 function GroupsManagement() {
+  const { t } = useTranslation()
   const [groups, setGroups] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -2026,6 +2029,7 @@ function LeaderboardManagement() {
 
 // QR Scanner Management Component
 function QRScannerManagement() {
+  const { t } = useTranslation()
   const [scoreCategories, setScoreCategories] = useState([])
   const [isScanning, setIsScanning] = useState(false)
   const [scannedUser, setScannedUser] = useState(null)
