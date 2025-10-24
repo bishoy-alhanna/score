@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from src.models.database import db, User, Group, Score, QRScanLog, GroupMember
+from src.models.database_multi_org import db, User, Group, GroupMember, Score, QRScanLog
 import qrcode
 import io
 import base64

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Admin Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select, input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin Dashboard - Organization Join Request</h1>
+        <p>This demonstrates the improved organization dropdown for admins.</p>
+        
+        <form id="joinRequestForm">
+            <div class="form-group">
+                <label for="organization">Organization</label>
+                <select id="organization" name="organization" required>
+                    <option value="">Select organization</option>
+                    <option value="org1">Acme Corporation</option>
+                    <option value="org2">Tech Innovations Ltd</option>
+                    <option value="org3">Global Solutions Inc</option>
+                    <option value="org4">Digital Dynamics</option>
+                    <option value="org5">Future Systems</option>
+                </select>
+                <small>Note: Only organizations you're not already a member of are shown</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="role">Requested Role</label>
+                <select id="role" name="role" required>
+                    <option value="USER">User</option>
+                    <option value="ORG_ADMIN">Admin</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="message">Message (Optional)</label>
+                <textarea id="message" name="message" rows="4" placeholder="Why do you want to join this organization?"></textarea>
+            </div>
+            
+            <button type="submit">Submit Join Request</button>
+        </form>
+        
+        <div id="result" style="margin-top: 20px;"></div>
+        
+        <div style="margin-top: 40px; padding: 20px; background-color: #f8f9fa; border-radius: 4px;">
+            <h3>Changes Implemented:</h3>
+            <ul>
+                <li>✅ Changed organization text box to dropdown</li>
+                <li>✅ Dropdown shows available organization names</li>
+                <li>✅ Only shows organizations user is not already a member of</li>
+                <li>✅ Excludes organizations with pending join requests</li>
+                <li>✅ Sends organization ID instead of name to backend</li>
+                <li>✅ Integrated with existing API endpoints</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('joinRequestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {
+                organization_id: formData.get('organization'),
+                requested_role: formData.get('role'),
+                message: formData.get('message')
+            };
+            
+            document.getElementById('result').innerHTML = 
+                '<div class="success">✅ Join request submitted successfully!</div>' +
+                '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        });
+    </script>
+</body>
+</html>

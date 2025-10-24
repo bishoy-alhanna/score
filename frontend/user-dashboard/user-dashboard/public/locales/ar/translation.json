@@ -1,0 +1,75 @@
+{
+  "common": {
+    "welcome": "مرحباً",
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "success": "نجح",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "refresh": "تحديث",
+    "settings": "الإعدادات",
+    "profile": "الملف الشخصي",
+    "logout": "تسجيل الخروج",
+    "back": "رجوع",
+    "next": "التالي",
+    "submit": "إرسال",
+    "close": "إغلاق",
+    "view": "عرض",
+    "select": "اختيار",
+    "all": "الكل",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "date": "التاريخ",
+    "score": "النتيجة",
+    "points": "النقاط",
+    "rank": "الترتيب",
+    "total": "المجموع",
+    "language": "اللغة"
+  },
+  "navigation": {
+    "dashboard": "لوحة التحكم",
+    "leaderboard": "قائمة المتصدرين",
+    "profile": "الملف الشخصي",
+    "settings": "الإعدادات",
+    "home": "الرئيسية"
+  },
+  "dashboard": {
+    "title": "لوحة تحكم المستخدم",
+    "myScore": "نتيجتي",
+    "myRank": "ترتيبي",
+    "recentActivity": "النشاط الأخير",
+    "achievements": "الإنجازات"
+  },
+  "leaderboard": {
+    "title": "قائمة المتصدرين",
+    "userLeaderboard": "قائمة المستخدمين المتصدرين",
+    "groupLeaderboard": "قائمة المجموعات المتصدرة",
+    "myPosition": "موقعي",
+    "position": "المركز",
+    "participant": "المشارك",
+    "score": "النتيجة",
+    "noData": "لا توجد بيانات متاحة للقائمة"
+  },
+  "profile": {
+    "title": "ملفي الشخصي",
+    "personalInfo": "المعلومات الشخصية",
+    "firstName": "الاسم الأول",
+    "lastName": "الاسم الأخير",
+    "username": "اسم المستخدم",
+    "department": "القسم",
+    "group": "المجموعة",
+    "editProfile": "تعديل الملف الشخصي",
+    "changePassword": "تغيير كلمة المرور"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "username": "اسم المستخدم",
+    "password": "كلمة المرور",
+    "rememberMe": "تذكرني",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "loginSuccess": "تم تسجيل الدخول بنجاح",
+    "loginError": "فشل في تسجيل الدخول",
+    "invalidCredentials": "بيانات الاعتماد غير صحيحة"
+  }
+}

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import jwt
-from src.models.database import db, Score, ScoreAggregate
+from src.models.database import db, Score, ScoreAggregate, ScoreCategory
 from sqlalchemy import func
 import os
 
@@ -86,6 +86,7 @@ def update_score_aggregate(user_id=None, group_id=None, category='general', orga
         aggregate.score_count = result.count or 0
         aggregate.average_score = float(result.average or 0)
 
+@scores_bp.route('', methods=['POST'])
 @scores_bp.route('/', methods=['POST'])
 def assign_score():
     """Assign score to user or group"""
@@ -101,6 +102,9 @@ def assign_score():
         data = request.get_json()
         
         # Validate required fields
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
         if not data.get('score_value'):
             return jsonify({'error': 'Score value is required'}), 400
         
@@ -113,10 +117,29 @@ def assign_score():
         score_value = data['score_value']
         user_id = data.get('user_id')
         group_id = data.get('group_id')
-        category = data.get('category', 'general')
+        category_id = data.get('category_id')
+        category = data.get('category', 'general')  # Backward compatibility
         description = data.get('description', '')
-        organization_id = user_payload['organization_id']
+        organization_id = data.get('organization_id') or user_payload['organization_id']
         assigned_by = user_payload['user_id']
+        
+        # If category_id is provided, use it; otherwise fall back to category string
+        if category_id:
+            # Validate category exists and belongs to organization
+            score_category = ScoreCategory.query.filter_by(
+                id=category_id,
+                organization_id=organization_id,
+                is_active=True
+            ).first()
+            
+            if not score_category:
+                return jsonify({'error': 'Invalid category ID'}), 400
+            
+            # Validate score doesn't exceed max
+            if score_value > score_category.max_score:
+                return jsonify({
+                    'error': f'Score value cannot exceed maximum of {score_category.max_score} for this category'
+                }), 400
         
         # Validate score value
         try:
@@ -129,6 +152,7 @@ def assign_score():
             user_id=user_id,
             group_id=group_id,
             score_value=score_value,
+            category_id=category_id,
             category=category,
             description=description,
             organization_id=organization_id,
@@ -157,6 +181,7 @@ def assign_score():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@scores_bp.route('', methods=['GET'])
 @scores_bp.route('/', methods=['GET'])
 def get_scores():
     """Get scores with optional filters"""
@@ -413,6 +438,134 @@ def get_group_total_score(group_id):
             'total_score': total,
             'score_count': count,
             'average_score': average
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Score Categories endpoints
+@scores_bp.route('/categories', methods=['GET'])
+def get_score_categories():
+    """Get all score categories for an organization"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        organization_id = request.args.get('organization_id') or user_payload.get('organization_id')
+        if not organization_id:
+            return jsonify({'error': 'Organization ID required'}), 400
+        
+        categories = ScoreCategory.query.filter_by(
+            organization_id=organization_id,
+            is_active=True
+        ).all()
+        
+        return jsonify({
+            'categories': [cat.to_dict() for cat in categories]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@scores_bp.route('/categories', methods=['POST'])
+def create_score_category():
+    """Create a new score category"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        data = request.get_json()
+        name = data.get('name')
+        description = data.get('description', '')
+        max_score = data.get('max_score', 100)
+        organization_id = data.get('organization_id') or user_payload.get('organization_id')
+        
+        if not name or not organization_id:
+            return jsonify({'error': 'Name and organization ID are required'}), 400
+        
+        # Check if category already exists
+        existing = ScoreCategory.query.filter_by(
+            name=name,
+            organization_id=organization_id
+        ).first()
+        
+        if existing:
+            return jsonify({'error': 'Category with this name already exists'}), 400
+        
+        category = ScoreCategory(
+            name=name,
+            description=description,
+            max_score=max_score,
+            organization_id=organization_id,
+            created_by=user_payload['user_id']
+        )
+        
+        db.session.add(category)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Score category created successfully',
+            'category': category.to_dict()
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@scores_bp.route('/categories/<category_id>', methods=['PUT'])
+def update_score_category(category_id):
+    """Update a score category"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        category = ScoreCategory.query.get_or_404(category_id)
+        
+        # Check if user has permission to update (same organization)
+        if category.organization_id != user_payload.get('organization_id'):
+            return jsonify({'error': 'Permission denied'}), 403
+        
+        data = request.get_json()
+        
+        if 'name' in data:
+            category.name = data['name']
+        if 'description' in data:
+            category.description = data['description']
+        if 'max_score' in data:
+            category.max_score = data['max_score']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Score category updated successfully',
+            'category': category.to_dict()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@scores_bp.route('/categories/<category_id>', methods=['DELETE'])
+def delete_score_category(category_id):
+    """Delete a score category"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        category = ScoreCategory.query.get_or_404(category_id)
+        
+        # Check if user has permission to delete (same organization)
+        if category.organization_id != user_payload.get('organization_id'):
+            return jsonify({'error': 'Permission denied'}), 403
+        
+        # Soft delete
+        category.is_active = False
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Score category deleted successfully'
         }), 200
         
     except Exception as e:

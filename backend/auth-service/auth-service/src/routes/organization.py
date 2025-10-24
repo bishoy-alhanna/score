@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import jwt
-from src.models.database import db, Organization, User
+from src.models.database_multi_org import db, Organization, User
 import os
 
 organization_bp = Blueprint('organization', __name__)
@@ -33,10 +33,15 @@ def get_organization():
         if error:
             return jsonify(error), status_code
         
-        organization = user.organization
+        # Get user's current organization from membership
+        current_membership = user.organization_memberships[0] if user.organization_memberships else None
+        if not current_membership:
+            return jsonify({'error': 'User is not a member of any organization'}), 400
+        
+        organization = current_membership.organization
         return jsonify({
             'organization': organization.to_dict(),
-            'user_count': len(organization.users)
+            'user_count': len([m for m in organization.user_memberships if m.is_active])
         }), 200
         
     except Exception as e:
@@ -50,11 +55,16 @@ def update_organization():
         if error:
             return jsonify(error), status_code
         
-        if user.role != 'ORG_ADMIN':
+        # Get user's current organization membership and check role
+        current_membership = user.organization_memberships[0] if user.organization_memberships else None
+        if not current_membership:
+            return jsonify({'error': 'User is not a member of any organization'}), 400
+        
+        if current_membership.role != 'ORG_ADMIN':
             return jsonify({'error': 'Only organization admins can update organization'}), 403
         
         data = request.get_json()
-        organization = user.organization
+        organization = current_membership.organization
         
         if 'name' in data:
             # Check if new name is already taken
@@ -86,14 +96,24 @@ def get_organization_users():
         if error:
             return jsonify(error), status_code
         
-        # Get all users in the same organization
-        users = User.query.filter_by(
-            organization_id=user.organization_id,
-            is_active=True
+        # Get user's current organization from membership
+        current_membership = user.organization_memberships[0] if user.organization_memberships else None
+        if not current_membership:
+            return jsonify({'error': 'User is not a member of any organization'}), 400
+        
+        organization_id = current_membership.organization_id
+        
+        # Get all users in the same organization through UserOrganization relationships
+        from src.models.database_multi_org import UserOrganization
+        
+        organization_users = db.session.query(User).join(UserOrganization).filter(
+            UserOrganization.organization_id == organization_id,
+            UserOrganization.is_active == True,
+            User.is_active == True
         ).all()
         
         return jsonify({
-            'users': [u.to_dict() for u in users]
+            'users': [u.to_dict() for u in organization_users]
         }), 200
         
     except Exception as e:
@@ -107,24 +127,35 @@ def get_organization_stats():
         if error:
             return jsonify(error), status_code
         
-        organization = user.organization
+        # Get user's current organization from membership
+        current_membership = user.organization_memberships[0] if user.organization_memberships else None
+        if not current_membership:
+            return jsonify({'error': 'User is not a member of any organization'}), 400
         
-        # Count users by role
-        total_users = User.query.filter_by(
-            organization_id=organization.id,
-            is_active=True
+        organization = current_membership.organization
+        organization_id = organization.id
+        
+        # Count users by role using UserOrganization relationships
+        from src.models.database_multi_org import UserOrganization
+        
+        total_users = db.session.query(User).join(UserOrganization).filter(
+            UserOrganization.organization_id == organization_id,
+            UserOrganization.is_active == True,
+            User.is_active == True
         ).count()
         
-        admin_users = User.query.filter_by(
-            organization_id=organization.id,
-            role='ORG_ADMIN',
-            is_active=True
+        admin_users = db.session.query(User).join(UserOrganization).filter(
+            UserOrganization.organization_id == organization_id,
+            UserOrganization.role == 'ORG_ADMIN',
+            UserOrganization.is_active == True,
+            User.is_active == True
         ).count()
         
-        regular_users = User.query.filter_by(
-            organization_id=organization.id,
-            role='USER',
-            is_active=True
+        regular_users = db.session.query(User).join(UserOrganization).filter(
+            UserOrganization.organization_id == organization_id,
+            UserOrganization.role == 'USER',
+            UserOrganization.is_active == True,
+            User.is_active == True
         ).count()
         
         return jsonify({

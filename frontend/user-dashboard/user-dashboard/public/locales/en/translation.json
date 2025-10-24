@@ -1,0 +1,75 @@
+{
+  "common": {
+    "welcome": "Welcome",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "save": "Save",
+    "cancel": "Cancel",
+    "refresh": "Refresh",
+    "settings": "Settings",
+    "profile": "Profile",
+    "logout": "Logout",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "close": "Close",
+    "view": "View",
+    "select": "Select",
+    "all": "All",
+    "name": "Name",
+    "email": "Email",
+    "date": "Date",
+    "score": "Score",
+    "points": "Points",
+    "rank": "Rank",
+    "total": "Total",
+    "language": "Language"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "leaderboard": "Leaderboard",
+    "profile": "Profile",
+    "settings": "Settings",
+    "home": "Home"
+  },
+  "dashboard": {
+    "title": "User Dashboard",
+    "myScore": "My Score",
+    "myRank": "My Rank",
+    "recentActivity": "Recent Activity",
+    "achievements": "Achievements"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "userLeaderboard": "User Leaderboard",
+    "groupLeaderboard": "Group Leaderboard",
+    "myPosition": "My Position",
+    "position": "Position",
+    "participant": "Participant",
+    "score": "Score",
+    "noData": "No leaderboard data available"
+  },
+  "profile": {
+    "title": "My Profile",
+    "personalInfo": "Personal Information",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "username": "Username",
+    "department": "Department",
+    "group": "Group",
+    "editProfile": "Edit Profile",
+    "changePassword": "Change Password"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "rememberMe": "Remember Me",
+    "forgotPassword": "Forgot Password?",
+    "loginSuccess": "Login successful",
+    "loginError": "Login failed",
+    "invalidCredentials": "Invalid credentials"
+  }
+}

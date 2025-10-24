@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #cce7ff; color: #004085; }
+    </style>
+</head>
+<body>
+    <h1>Admin Dashboard Debug Test</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        // Test 1: Check if the admin dashboard HTML loads
+        addResult('Testing admin dashboard HTML...', 'info');
+        fetch('http://admin.score.al-hanna.com/')
+            .then(response => {
+                if (response.ok) {
+                    addResult('✓ Admin dashboard HTML loads successfully', 'success');
+                    return response.text();
+                } else {
+                    addResult(`✗ Admin dashboard HTML failed to load: ${response.status}`, 'error');
+                }
+            })
+            .then(html => {
+                if (html && html.includes('Admin Dashboard - SaaS Platform')) {
+                    addResult('✓ HTML contains correct title', 'success');
+                } else {
+                    addResult('✗ HTML title not found', 'error');
+                }
+                
+                // Check for JavaScript and CSS assets
+                const jsMatch = html.match(/assets\/index-[^.]+\.js/);
+                const cssMatch = html.match(/assets\/index-[^.]+\.css/);
+                
+                if (jsMatch) {
+                    addResult(`✓ JavaScript asset found: ${jsMatch[0]}`, 'success');
+                    // Test JavaScript asset
+                    fetch(`http://admin.score.al-hanna.com/${jsMatch[0]}`)
+                        .then(response => {
+                            if (response.ok) {
+                                addResult('✓ JavaScript asset loads successfully', 'success');
+                            } else {
+                                addResult(`✗ JavaScript asset failed: ${response.status}`, 'error');
+                            }
+                        })
+                        .catch(err => addResult(`✗ JavaScript asset error: ${err.message}`, 'error'));
+                } else {
+                    addResult('✗ JavaScript asset not found in HTML', 'error');
+                }
+                
+                if (cssMatch) {
+                    addResult(`✓ CSS asset found: ${cssMatch[0]}`, 'success');
+                    // Test CSS asset
+                    fetch(`http://admin.score.al-hanna.com/${cssMatch[0]}`)
+                        .then(response => {
+                            if (response.ok) {
+                                addResult('✓ CSS asset loads successfully', 'success');
+                            } else {
+                                addResult(`✗ CSS asset failed: ${response.status}`, 'error');
+                            }
+                        })
+                        .catch(err => addResult(`✗ CSS asset error: ${err.message}`, 'error'));
+                } else {
+                    addResult('✗ CSS asset not found in HTML', 'error');
+                }
+            })
+            .catch(err => {
+                addResult(`✗ Failed to load admin dashboard: ${err.message}`, 'error');
+            });
+
+        // Test 2: Check API connection
+        addResult('Testing API connection...', 'info');
+        fetch('http://admin.score.al-hanna.com/api/health')
+            .then(response => {
+                if (response.ok) {
+                    addResult('✓ API health endpoint accessible', 'success');
+                } else {
+                    addResult(`✗ API health endpoint failed: ${response.status}`, 'error');
+                }
+            })
+            .catch(err => {
+                addResult(`✗ API health endpoint error: ${err.message}`, 'error');
+            });
+    </script>
+</body>
+</html>

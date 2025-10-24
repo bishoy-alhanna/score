@@ -1,0 +1,236 @@
+/* RTL (Right-to-Left) Support for Arabic */
+[dir="rtl"], .rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="ltr"] {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Header and navigation fixes - be more specific */
+[dir="rtl"] .flex.items-center {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .flex.justify-between {
+  flex-direction: row-reverse;
+}
+
+/* Don't reverse all flex containers */
+[dir="rtl"] .flex-col {
+  flex-direction: column !important;
+}
+
+/* Spacing fixes for RTL */
+[dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+  margin-right: calc(0.5rem * var(--tw-space-x-reverse));
+  margin-left: calc(0.5rem * calc(1 - var(--tw-space-x-reverse)));
+}
+
+[dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+  margin-right: calc(1rem * var(--tw-space-x-reverse));
+  margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse)));
+}
+
+[dir="rtl"] .space-x-8 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+  margin-right: calc(2rem * var(--tw-space-x-reverse));
+  margin-left: calc(2rem * calc(1 - var(--tw-space-x-reverse)));
+}
+
+/* Margin fixes */
+[dir="rtl"] .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+[dir="rtl"] .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .ml-4 {
+  margin-left: 0;
+  margin-right: 1rem;
+}
+
+[dir="rtl"] .mr-4 {
+  margin-right: 0;
+  margin-left: 1rem;
+}
+
+/* Text alignment */
+[dir="rtl"] .text-left {
+  text-align: right;
+}
+
+[dir="rtl"] .text-right {
+  text-align: left;
+}
+
+/* Justify content fixes */
+[dir="rtl"] .justify-between {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .justify-start {
+  justify-content: flex-end;
+}
+
+[dir="rtl"] .justify-end {
+  justify-content: flex-start;
+}
+
+/* Arabic font support */
+[dir="rtl"], .rtl {
+  font-family: 'Noto Sans Arabic', 'Cairo', 'Tajawal', 'Dubai', system-ui, sans-serif;
+}
+
+/* Button and form fixes */
+[dir="rtl"] .items-center {
+  align-items: center;
+}
+
+/* Select and dropdown fixes */
+[dir="rtl"] .select-trigger {
+  text-align: right;
+}
+
+/* Icon positioning fixes */
+[dir="rtl"] .h-4.w-4 {
+  margin-left: 0.5rem;
+  margin-right: 0;
+}
+
+/* Container alignment */
+[dir="rtl"] .container {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* Special RTL utility classes */
+.rtl\:space-x-reverse > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+  margin-right: calc(var(--tw-space-x) * var(--tw-space-x-reverse));
+  margin-left: calc(var(--tw-space-x) * calc(1 - var(--tw-space-x-reverse)));
+}
+
+[dir="rtl"] .rtl\:space-x-reverse {
+  --tw-space-x-reverse: 1;
+}
+
+/* Additional fixes for complex layouts */
+[dir="rtl"] .grid {
+  direction: rtl;
+}
+
+/* Don't reverse column layouts */
+[dir="rtl"] .flex-col {
+  flex-direction: column !important;
+}
+
+/* Form and container alignment */
+[dir="rtl"] .container,
+[dir="rtl"] .max-w-md,
+[dir="rtl"] .max-w-lg {
+  text-align: right;
+}
+
+/* Fix form layouts specifically */
+[dir="rtl"] .form-container {
+  direction: rtl;
+}
+
+/* Tabs should maintain their order */
+[dir="rtl"] .tabs-list {
+  direction: ltr;
+}
+
+[dir="rtl"] .grid-cols-2 {
+  direction: ltr;
+}
+
+/* Fix for card layouts */
+[dir="rtl"] .card-content {
+  text-align: right;
+}
+
+/* Input field fixes */
+[dir="rtl"] input[type="text"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+  direction: rtl;
+}
+
+/* Padding and positioning fixes */
+[dir="rtl"] .pl-3 {
+  padding-left: 0;
+  padding-right: 0.75rem;
+}
+
+[dir="rtl"] .pr-3 {
+  padding-right: 0;
+  padding-left: 0.75rem;
+}
+
+[dir="rtl"] .pl-10 {
+  padding-left: 0;
+  padding-right: 2.5rem;
+}
+
+[dir="rtl"] .pr-10 {
+  padding-right: 0;
+  padding-left: 2.5rem;
+}
+
+/* Icon positioning in input fields */
+[dir="rtl"] .absolute.left-3 {
+  left: auto;
+  right: 0.75rem;
+}
+
+[dir="rtl"] .absolute.right-3 {
+  right: auto;
+  left: 0.75rem;
+}
+
+/* Badge and status indicators */
+[dir="rtl"] .badge {
+  text-align: center;
+}
+
+/* Navigation and tab fixes */
+[dir="rtl"] .tab-list {
+  direction: rtl;
+}
+
+[dir="rtl"] .tab-trigger {
+  text-align: center;
+}
+
+/* Modal and dialog fixes */
+[dir="rtl"] .modal-content,
+[dir="rtl"] .dialog-content {
+  text-align: right;
+}
+
+/* Table fixes for RTL */
+[dir="rtl"] table {
+  direction: rtl;
+}
+
+[dir="rtl"] th,
+[dir="rtl"] td {
+  text-align: right;
+}
+
+[dir="rtl"] .table-auto {
+  direction: rtl;
+}

@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from src.models.database import db, SuperAdminConfig
+from src.models.database_multi_org import db, SuperAdminConfig
 from src.simple_json_encoder import SimpleJSONEncoder
 import bcrypt
 import json
@@ -53,16 +53,18 @@ def safe_jsonify(data):
     return jsonify(serialized_data)
 
 # Import routes after app is created
-from src.routes.auth import auth_bp
+from src.routes.auth_multi_org import auth_bp
 from src.routes.organization import organization_bp
 from src.routes.super_admin import super_admin_bp
-from src.routes.qr_code import qr_bp
+from src.routes.profile import profile_bp
+# from src.routes.qr_code import qr_bp  # TODO: Update for multi-org
 
 # Register blueprints
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(organization_bp, url_prefix='/api/organizations')
 app.register_blueprint(super_admin_bp, url_prefix='/api/super-admin')
-app.register_blueprint(qr_bp, url_prefix='/api/qr')
+app.register_blueprint(profile_bp, url_prefix='/api/profile')
+# app.register_blueprint(qr_bp, url_prefix='/api/qr')  # TODO: Enable when updated
 
 @app.route('/health')
 def health_check():
