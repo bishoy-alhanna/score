@@ -441,11 +441,22 @@ function Dashboard() {
   const [weeklyData, setWeeklyData] = useState([])
   const [categories, setCategories] = useState([])
   const [chartLoading, setChartLoading] = useState(true)
+  
+  // Self-reporting state
+  const [predefinedCategories, setPredefinedCategories] = useState([])
+  const [selfReportData, setSelfReportData] = useState({
+    category_id: '',
+    date: new Date().toISOString().split('T')[0] // Today's date
+  })
+  const [selfReportLoading, setSelfReportLoading] = useState(false)
+  const [selfReportMessage, setSelfReportMessage] = useState('')
+  const [selfReportError, setSelfReportError] = useState('')
 
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchDashboardData()
       fetchWeeklyData()
+      fetchPredefinedCategories()
     }
   }, [currentOrganization])
 
@@ -462,7 +473,7 @@ function Dashboard() {
     try {
       const [statsResponse, leaderboardResponse, groupsResponse] = await Promise.all([
         api.get(`/scores/user/${user.id}/total?organization_id=${currentOrganization.organization_id}`).catch(() => ({ data: { total_score: 0, score_count: 0, average_score: 0 } })),
-        api.get(`/leaderboards/users?limit=10&organization_id=${currentOrganization.organization_id}`).catch(() => ({ data: { leaderboard: [] } })),
+        api.get(`/leaderboards/users?limit=10&category=all&organization_id=${currentOrganization.organization_id}`).catch(() => ({ data: { leaderboard: [] } })),
         api.get('/groups/my-groups').catch(() => ({ data: { groups: [] } }))
       ])
       
@@ -481,7 +492,7 @@ function Dashboard() {
     
     try {
       setLeaderboardLoading(true)
-      const response = await api.get(`/leaderboards/users?limit=100&organization_id=${currentOrganization.organization_id}`)
+      const response = await api.get(`/leaderboards/users?limit=100&category=all&organization_id=${currentOrganization.organization_id}`)
       setFullLeaderboard(response.data.leaderboard || [])
     } catch (error) {
       console.error('Failed to fetch full leaderboard:', error)
@@ -505,6 +516,65 @@ function Dashboard() {
       setCategories([])
     } finally {
       setChartLoading(false)
+    }
+  }
+
+  const fetchPredefinedCategories = async () => {
+    if (!currentOrganization?.organization_id) return
+    
+    try {
+      const response = await api.get(`/scores/categories?organization_id=${currentOrganization.organization_id}`)
+      // Filter only predefined categories
+      const predefined = response.data.categories.filter(cat => cat.is_predefined)
+      setPredefinedCategories(predefined)
+    } catch (error) {
+      console.error('Failed to fetch predefined categories:', error)
+      setPredefinedCategories([])
+    }
+  }
+
+  const handleSelfReport = async (e) => {
+    e.preventDefault()
+    if (!selfReportData.category_id || !selfReportData.date) {
+      setSelfReportError('Please select a category and date')
+      return
+    }
+
+    setSelfReportLoading(true)
+    setSelfReportError('')
+    setSelfReportMessage('')
+
+    try {
+      // First check if score already exists
+      const checkResponse = await api.get(`/scores/user/${user.id}/check-score?category_id=${selfReportData.category_id}&date=${selfReportData.date}`)
+      
+      if (checkResponse.data.exists) {
+        setSelfReportError('You already have a score for this category on this date')
+        return
+      }
+
+      // Submit the self-report
+      const response = await api.post(`/scores/user/${user.id}/self-report`, {
+        category_id: selfReportData.category_id,
+        date: selfReportData.date
+      })
+
+      setSelfReportMessage(response.data.message)
+      
+      // Reset form
+      setSelfReportData({
+        category_id: '',
+        date: new Date().toISOString().split('T')[0]
+      })
+
+      // Refresh dashboard data
+      fetchDashboardData()
+      fetchWeeklyData()
+
+    } catch (error) {
+      setSelfReportError(error.response?.data?.error || 'Failed to submit score')
+    } finally {
+      setSelfReportLoading(false)
     }
   }
 
@@ -582,6 +652,75 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Self-Report Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Target className="h-5 w-5 mr-2 text-green-500" />
+            Record Your Activity
+          </CardTitle>
+          <CardDescription>
+            Report your attendance for religious activities to earn points
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSelfReport} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="category">Activity Category</Label>
+                <Select 
+                  value={selfReportData.category_id} 
+                  onValueChange={(value) => setSelfReportData({ ...selfReportData, category_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an activity" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {predefinedCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name} (Max: {category.max_score} points)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="date">Date</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={selfReportData.date}
+                  onChange={(e) => setSelfReportData({ ...selfReportData, date: e.target.value })}
+                  max={new Date().toISOString().split('T')[0]} // Can't select future dates
+                  required
+                />
+              </div>
+            </div>
+
+            {selfReportError && (
+              <Alert variant="destructive">
+                <AlertDescription>{selfReportError}</AlertDescription>
+              </Alert>
+            )}
+
+            {selfReportMessage && (
+              <Alert className="border-green-200 bg-green-50">
+                <AlertDescription className="text-green-800">{selfReportMessage}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button 
+              type="submit" 
+              disabled={selfReportLoading || !selfReportData.category_id || !selfReportData.date}
+              className="w-full md:w-auto"
+            >
+              {selfReportLoading ? 'Submitting...' : 'Record Activity'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

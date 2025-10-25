@@ -720,3 +720,128 @@ def create_predefined_categories():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+@scores_bp.route('/user/<user_id>/check-score', methods=['GET'])
+def check_user_score_exists(user_id):
+    """Check if user has a score for a specific category and date"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        # Users can only check their own scores unless they're admin
+        if user_payload['user_id'] != user_id and user_payload.get('role') not in ['ADMIN', 'ORG_ADMIN']:
+            return jsonify({'error': 'Permission denied'}), 403
+            
+        category_id = request.args.get('category_id')
+        date_str = request.args.get('date')  # Expected format: YYYY-MM-DD
+        
+        if not category_id or not date_str:
+            return jsonify({'error': 'category_id and date are required'}), 400
+        
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        # Check if score exists for this user, category, and date
+        existing_score = Score.query.filter(
+            Score.user_id == user_id,
+            Score.category_id == category_id,
+            func.date(Score.created_at) == date_obj,
+            Score.organization_id == user_payload['organization_id']
+        ).first()
+        
+        return jsonify({
+            'exists': existing_score is not None,
+            'score_id': str(existing_score.id) if existing_score else None,
+            'score_value': existing_score.score_value if existing_score else None
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@scores_bp.route('/user/<user_id>/self-report', methods=['POST'])
+def self_report_score(user_id):
+    """Allow user to self-report score for predefined categories"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        # Users can only report for themselves
+        if user_payload['user_id'] != user_id:
+            return jsonify({'error': 'You can only report scores for yourself'}), 403
+        
+        data = request.get_json()
+        category_id = data.get('category_id')
+        date_str = data.get('date')  # Expected format: YYYY-MM-DD
+        
+        if not category_id or not date_str:
+            return jsonify({'error': 'category_id and date are required'}), 400
+        
+        try:
+            from datetime import datetime
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        # Get the category and verify it's predefined
+        category = ScoreCategory.query.filter_by(
+            id=category_id,
+            organization_id=user_payload['organization_id'],
+            is_active=True
+        ).first()
+        
+        if not category:
+            return jsonify({'error': 'Category not found'}), 404
+        
+        if not getattr(category, 'is_predefined', False):
+            return jsonify({'error': 'Self-reporting is only allowed for predefined categories'}), 400
+        
+        # Check if score already exists for this date
+        existing_score = Score.query.filter(
+            Score.user_id == user_id,
+            Score.category_id == category_id,
+            func.date(Score.created_at) == date_obj,
+            Score.organization_id == user_payload['organization_id']
+        ).first()
+        
+        if existing_score:
+            return jsonify({'error': f'You already have a score for {category.name} on {date_str}'}), 400
+        
+        # Create score with maximum value for the category
+        score = Score(
+            user_id=user_id,
+            score_value=category.max_score,
+            category_id=category_id,
+            category=category.name,  # Backward compatibility
+            description=f'Self-reported for {date_str}',
+            organization_id=user_payload['organization_id'],
+            assigned_by=user_id,  # Self-assigned
+            created_at=datetime.combine(date_obj, datetime.min.time())
+        )
+        
+        db.session.add(score)
+        db.session.flush()
+        
+        # Update aggregates
+        update_score_aggregate(
+            user_id=user_id,
+            category=category.name,
+            organization_id=user_payload['organization_id']
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Score recorded successfully for {category.name}',
+            'score': score.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
