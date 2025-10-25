@@ -383,6 +383,9 @@ def get_user_total_score(user_id):
         
         organization_id = user_payload['organization_id']
         
+        # DEBUG: Print what we're filtering by
+        print(f"DEBUG SCORING: Getting scores for user_id: {user_id}, organization_id: {organization_id}")
+        
         # Get total score for user
         total = db.session.query(func.sum(Score.score_value)).filter_by(
             user_id=user_id,

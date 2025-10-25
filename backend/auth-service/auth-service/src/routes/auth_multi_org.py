@@ -34,7 +34,15 @@ def safe_jsonify(data):
     serialized_data = safe_serialize(data)
     return jsonify(serialized_data)
 
+# STARTUP DEBUG
+print("🔥 AUTH_MULTI_ORG.PY LOADED!", flush=True)
+
 auth_bp = Blueprint('auth', __name__)
+
+@auth_bp.route('/test-debug', methods=['GET'])
+def test_debug():
+    """Test endpoint to verify this file is being used"""
+    return jsonify({'message': 'AUTH_MULTI_ORG.PY is working!', 'file': 'auth_multi_org.py'}), 200
 
 def generate_jwt_token(user, organization_id=None):
     """Generate JWT token for authenticated user"""
@@ -201,50 +209,43 @@ def verify():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """Authenticate user and return JWT token"""
+    """Login endpoint supporting multi-organization selection"""
     try:
+        import sys
+        print(f"DEBUG: Login endpoint called", file=sys.stderr, flush=True)
         data = request.get_json()
+        print(f"DEBUG: Login data received: {data}", file=sys.stderr, flush=True)
+        
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
         
         # Validate required fields
-        required_fields = ['username', 'password']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'error': f'{field} is required'}), 400
+        username = data.get('username')
+        password = data.get('password')
+        organization_name = data.get('organization_name')
         
-        username = data['username']
-        password = data['password']
-        organization_name = data.get('organization_name')  # Organization name for join request
-        organization_id = data.get('organization_id')  # Optional: specific org login
+        print(f"DEBUG: Processing login for username: {username}, org: {organization_name}", file=sys.stderr, flush=True)
         
-        # Find user by username or email
-        user = User.query.filter(
-            (User.username == username) | (User.email == username)
-        ).first()
+        if not username or not password:
+            return jsonify({'error': 'Username and password are required'}), 400
+        
+        # Find user by username
+        user = User.query.filter_by(username=username, is_active=True).first()
         
         if not user or not user.verify_password(password):
-            return jsonify({'error': 'Invalid credentials'}), 401
+            return jsonify({'error': 'Invalid username or password'}), 401
         
-        if not user.is_active:
-            return jsonify({'error': 'Account is deactivated'}), 401
+        print(f"DEBUG: User authenticated: {user.username}", file=sys.stderr, flush=True)
         
-        # Check if user belongs to any active organization
+        # Get user's active organization memberships
         user_organizations = UserOrganization.query.filter_by(
-            user_id=user.id, 
+            user_id=user.id,
             is_active=True
         ).join(Organization).filter(Organization.is_active == True).all()
         
-        # If user specified a specific organization_id, validate membership
-        if organization_id:
-            # Check if user is actually a member of the specified organization
-            user_org_membership = next(
-                (uo for uo in user_organizations if str(uo.organization_id) == str(organization_id)), 
-                None
-            )
-            if not user_org_membership:
-                return jsonify({
-                    'error': 'Access denied. You are not a member of the specified organization.',
-                    'invalid_organization': True
-                }), 403
+        print(f"DEBUG: User orgs: {[(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]}", file=sys.stderr, flush=True)
+        
+        organization_id = None
         
         # If user specified an organization name and is not a member, create join request
         if organization_name and not user_organizations:
@@ -286,6 +287,27 @@ def login():
                     'organization_not_found': True
                 }), 404
         
+        # If user specified an organization name and IS a member, find the matching organization
+        elif organization_name and user_organizations:
+            print(f"DEBUG: Looking for org name match: '{organization_name}'", file=sys.stderr, flush=True)
+            # Find the organization by name among user's memberships
+            user_org_membership = next(
+                (uo for uo in user_organizations if uo.organization.name == organization_name), 
+                None
+            )
+            if user_org_membership:
+                organization_id = str(user_org_membership.organization_id)
+                print(f"DEBUG: Found matching org by name: {organization_name} -> {organization_id}", file=sys.stderr, flush=True)
+            else:
+                print(f"DEBUG: No matching org found for name: {organization_name}", file=sys.stderr, flush=True)
+                print(f"DEBUG: Available orgs: {[(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]}", file=sys.stderr, flush=True)
+                return jsonify({
+                    'error': f'You are not a member of "{organization_name}". Please select one of your organizations.',
+                    'invalid_organization': True,
+                    'debug_searched_name': organization_name,
+                    'debug_available_orgs': [(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]
+                }), 403
+        
         if not user_organizations:
             return jsonify({
                 'error': 'Access denied. You are not a member of any active organization. Please specify an organization name to request access or contact your administrator.'
@@ -295,17 +317,24 @@ def login():
         # Otherwise, use the first organization the user belongs to
         final_organization_id = organization_id if organization_id else user_organizations[0].organization_id
         
+        print(f"DEBUG: Final organization_id: {final_organization_id}", file=sys.stderr, flush=True)
+        
         # Generate JWT token with the validated organization ID
         token = generate_jwt_token(user, final_organization_id)
         
-        return safe_jsonify({
+        return jsonify({
             'message': 'Login successful',
             'token': token,
             'user': user.to_dict(include_organizations=True),
-            'organization_id': final_organization_id
+            'organization_id': str(final_organization_id),
+            'debug_org_name': organization_name,
+            'debug_org_id': organization_id,
+            'debug_final': str(final_organization_id),
+            'debug_available_orgs': [(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]
         }), 200
         
     except Exception as e:
+        print(f"DEBUG: Login error: {str(e)}", file=sys.stderr, flush=True)
         return jsonify({'error': str(e)}), 500
 
 @auth_bp.route('/create-organization', methods=['POST'])

@@ -44,6 +44,7 @@ const AuthContext = React.createContext()
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
+  const [currentOrganization, setCurrentOrganization] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -59,6 +60,12 @@ function AuthProvider({ children }) {
     try {
       const response = await api.post('/auth/verify')
       setUser(response.data.user)
+      if (response.data.current_organization_id) {
+        const org = response.data.user.organizations?.find(
+          org => org.organization_id === response.data.current_organization_id
+        )
+        setCurrentOrganization(org)
+      }
     } catch (error) {
       localStorage.removeItem('authToken')
     } finally {
@@ -68,19 +75,37 @@ function AuthProvider({ children }) {
 
   const login = async (credentials) => {
     const response = await api.post('/auth/login', credentials)
-    const { token, user } = response.data
+    const { token, user, organization_id } = response.data
     localStorage.setItem('authToken', token)
     setUser(user)
+    
+    // Set current organization from login response or find it in user organizations
+    if (organization_id) {
+      const org = user.organizations?.find(
+        org => org.organization_id === organization_id
+      )
+      setCurrentOrganization(org)
+    } else if (user.organizations && user.organizations.length > 0) {
+      setCurrentOrganization(user.organizations[0])
+    }
+    
     return response.data
   }
 
   const logout = () => {
     localStorage.removeItem('authToken')
     setUser(null)
+    setCurrentOrganization(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      currentOrganization, 
+      login, 
+      logout, 
+      loading 
+    }}>
       {children}
     </AuthContext.Provider>
   )
@@ -405,7 +430,7 @@ function DashboardLayout({ children }) {
 
 // Dashboard overview
 function Dashboard() {
-  const { user } = useAuth()
+  const { user, currentOrganization } = useAuth()
   const { t } = useTranslation()
   const [userStats, setUserStats] = useState(null)
   const [leaderboard, setLeaderboard] = useState([])
@@ -415,19 +440,25 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    if (currentOrganization?.organization_id) {
+      fetchDashboardData()
+    }
+  }, [currentOrganization])
 
   useEffect(() => {
     // Load full leaderboard data on component mount
-    fetchFullLeaderboard()
-  }, [])
+    if (currentOrganization?.organization_id) {
+      fetchFullLeaderboard()
+    }
+  }, [currentOrganization])
 
   const fetchDashboardData = async () => {
+    if (!currentOrganization?.organization_id) return
+    
     try {
       const [statsResponse, leaderboardResponse, groupsResponse] = await Promise.all([
-        api.get(`/scores/user/${user.id}/total`).catch(() => ({ data: { total_score: 0, score_count: 0, average_score: 0 } })),
-        api.get('/leaderboards/users?limit=10').catch(() => ({ data: { leaderboard: [] } })),
+        api.get(`/scores/user/${user.id}/total?organization_id=${currentOrganization.organization_id}`).catch(() => ({ data: { total_score: 0, score_count: 0, average_score: 0 } })),
+        api.get(`/leaderboards/users?limit=10&organization_id=${currentOrganization.organization_id}`).catch(() => ({ data: { leaderboard: [] } })),
         api.get('/groups/my-groups').catch(() => ({ data: { groups: [] } }))
       ])
       
@@ -442,9 +473,11 @@ function Dashboard() {
   }
 
   const fetchFullLeaderboard = async () => {
+    if (!currentOrganization?.organization_id) return
+    
     try {
       setLeaderboardLoading(true)
-      const response = await api.get('/leaderboards/users?limit=100')
+      const response = await api.get(`/leaderboards/users?limit=100&organization_id=${currentOrganization.organization_id}`)
       setFullLeaderboard(response.data.leaderboard || [])
     } catch (error) {
       console.error('Failed to fetch full leaderboard:', error)
