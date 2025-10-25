@@ -1628,6 +1628,25 @@ function ScoringManagement() {
     }
   }
 
+  const handleDeleteCategory = async (categoryId, categoryName, isPredefined) => {
+    if (isPredefined) {
+      setError('Cannot delete predefined categories')
+      return
+    }
+    
+    if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
+      return
+    }
+    
+    try {
+      await api.delete(`/scores/categories/${categoryId}`)
+      setScoreCategories(scoreCategories.filter(cat => cat.id !== categoryId))
+      setSuccess('Category deleted successfully!')
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete category')
+    }
+  }
+
   const handleAssignScore = async (e) => {
     e.preventDefault()
     try {
@@ -1698,9 +1717,27 @@ function ScoringManagement() {
               {scoreCategories.map((category) => (
                 <div key={category.id} className="flex justify-between items-center p-3 border rounded">
                   <div>
-                    <h4 className="font-medium">{category.name}</h4>
+                    <h4 className="font-medium flex items-center gap-2">
+                      {category.name}
+                      {category.is_predefined && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          Predefined
+                        </span>
+                      )}
+                    </h4>
                     <p className="text-sm text-gray-600">{category.description}</p>
                     <p className="text-sm text-gray-500">Max Score: {category.max_score}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {!category.is_predefined && (
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteCategory(category.id, category.name, category.is_predefined)}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

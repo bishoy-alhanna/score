@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { User, Trophy, Target, Users, LogOut, Medal, TrendingUp } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import axios from 'axios'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import LoadingSpinner from '@/components/ui/loading-spinner'
@@ -438,10 +438,14 @@ function Dashboard() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false)
   const [myGroups, setMyGroups] = useState([])
   const [loading, setLoading] = useState(true)
+  const [weeklyData, setWeeklyData] = useState([])
+  const [categories, setCategories] = useState([])
+  const [chartLoading, setChartLoading] = useState(true)
 
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchDashboardData()
+      fetchWeeklyData()
     }
   }, [currentOrganization])
 
@@ -484,6 +488,23 @@ function Dashboard() {
       setFullLeaderboard([])
     } finally {
       setLeaderboardLoading(false)
+    }
+  }
+
+  const fetchWeeklyData = async () => {
+    if (!currentOrganization?.organization_id || !user?.id) return
+    
+    try {
+      setChartLoading(true)
+      const response = await api.get(`/scores/user/${user.id}/weekly-by-category?weeks=20`)
+      setWeeklyData(response.data.weekly_data || [])
+      setCategories(response.data.categories || [])
+    } catch (error) {
+      console.error('Failed to fetch weekly data:', error)
+      setWeeklyData([])
+      setCategories([])
+    } finally {
+      setChartLoading(false)
     }
   }
 
@@ -651,25 +672,52 @@ function Dashboard() {
       <Card>
         <CardHeader>
           <CardTitle>{t('dashboard.performanceOverviewChart')}</CardTitle>
-          <CardDescription>{t('dashboard.scoringHistoryAndTrends')}</CardDescription>
+          <CardDescription>
+            {t('dashboard.scoringHistoryAndTrends')} - {t('dashboard.categorizedWeeklyProgress')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[
-                { name: 'Week 1', score: userStats?.total_score * 0.2 || 0 },
-                { name: 'Week 2', score: userStats?.total_score * 0.3 || 0 },
-                { name: 'Week 3', score: userStats?.total_score * 0.25 || 0 },
-                { name: 'Week 4', score: userStats?.total_score * 0.25 || 0 },
-              ]}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="score" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {chartLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <LoadingSpinner size="md" text={t('dashboard.loadingChart')} />
+            </div>
+          ) : weeklyData.length > 0 ? (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={weeklyData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="week" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value, name) => [value, name]}
+                    labelFormatter={(label) => `${label}`}
+                  />
+                  <Legend />
+                  {categories.map((category, index) => {
+                    const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+                    return (
+                      <Line
+                        key={category}
+                        type="monotone"
+                        dataKey={category}
+                        stroke={colors[index % colors.length]}
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    )
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>{t('dashboard.noChartData')}</p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

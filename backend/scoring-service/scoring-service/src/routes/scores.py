@@ -563,6 +563,10 @@ def delete_score_category(category_id):
         if category.organization_id != user_payload.get('organization_id'):
             return jsonify({'error': 'Permission denied'}), 403
         
+        # Check if category is predefined - cannot be deleted
+        if getattr(category, 'is_predefined', False):
+            return jsonify({'error': 'Cannot delete predefined categories'}), 400
+        
         # Soft delete
         category.is_active = False
         db.session.commit()
@@ -572,5 +576,147 @@ def delete_score_category(category_id):
         }), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@scores_bp.route('/user/<user_id>/weekly-by-category', methods=['GET'])
+def get_user_weekly_scores_by_category(user_id):
+    """Get user's weekly scores grouped by category"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        organization_id = user_payload['organization_id']
+        weeks_back = int(request.args.get('weeks', 6))
+        
+        # Get all categories for this organization
+        categories = ScoreCategory.query.filter_by(
+            organization_id=organization_id,
+            is_active=True
+        ).all()
+        
+        if not categories:
+            return jsonify({
+                'user_id': user_id,
+                'organization_id': organization_id,
+                'categories': [],
+                'weekly_data': [],
+                'weeks_back': weeks_back
+            }), 200
+        
+        # Get all scores for this user in this organization
+        from datetime import datetime, timedelta, timezone
+        from sqlalchemy import and_
+        
+        # Calculate date range for weeks (use UTC timezone)
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(weeks=weeks_back)
+        
+        scores = Score.query.filter_by(
+            user_id=user_id,
+            organization_id=organization_id
+        ).filter(
+            Score.created_at >= start_date
+        ).order_by(Score.created_at.asc()).all()
+        
+        # Group scores by week and category
+        weekly_data = []
+        category_names = [cat.name for cat in categories]
+        
+        for week_num in range(weeks_back):
+            week_start = start_date + timedelta(weeks=week_num)
+            week_end = week_start + timedelta(weeks=1)
+            
+            week_data = {'week': f'Week {week_num + 1}'}
+            
+            # Initialize all categories with 0
+            for cat_name in category_names:
+                week_data[cat_name] = 0
+            
+            # Calculate scores for this week
+            week_scores = [s for s in scores if week_start <= s.created_at < week_end]
+            
+            for score in week_scores:
+                # Get category name from relationship or fallback to category field
+                cat_name = score.score_category.name if score.score_category else score.category
+                if cat_name and cat_name in week_data:
+                    week_data[cat_name] += score.score_value
+            
+            weekly_data.append(week_data)
+        
+        return jsonify({
+            'user_id': user_id,
+            'organization_id': organization_id,
+            'categories': category_names,
+            'weekly_data': weekly_data,
+            'weeks_back': weeks_back
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@scores_bp.route('/create-predefined-categories', methods=['POST'])
+def create_predefined_categories():
+    """Create predefined categories for a new organization"""
+    try:
+        data = request.get_json()
+        
+        organization_id = data.get('organization_id')
+        created_by = data.get('created_by')
+        
+        if not organization_id or not created_by:
+            return jsonify({'error': 'organization_id and created_by are required'}), 400
+        
+        # Define predefined categories in Arabic
+        predefined_categories = [
+            {
+                'name': 'القداس',
+                'description': 'حضور القداس',
+                'max_score': 100
+            },
+            {
+                'name': 'التناول',
+                'description': 'تناول القربان المقدس',
+                'max_score': 100
+            },
+            {
+                'name': 'الاعتراف',
+                'description': 'سر الاعتراف',
+                'max_score': 100
+            }
+        ]
+        
+        created_categories = []
+        
+        for cat_data in predefined_categories:
+            # Check if category already exists
+            existing = ScoreCategory.query.filter_by(
+                name=cat_data['name'],
+                organization_id=organization_id
+            ).first()
+            
+            if not existing:
+                category = ScoreCategory(
+                    name=cat_data['name'],
+                    description=cat_data['description'],
+                    max_score=cat_data['max_score'],
+                    organization_id=organization_id,
+                    created_by=created_by,
+                    is_predefined=True
+                )
+                
+                db.session.add(category)
+                created_categories.append(cat_data['name'])
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Predefined categories created successfully',
+            'created_categories': created_categories
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 

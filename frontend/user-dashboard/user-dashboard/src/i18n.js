@@ -55,6 +55,9 @@ const resources = {
         notMemberOfAnyGroups: "You're not a member of any groups yet",
         performanceOverviewChart: "Performance Overview",
         scoringHistoryAndTrends: "Your scoring history and trends",
+        categorizedWeeklyProgress: "Weekly progress by category",
+        loadingChart: "Loading chart...",
+        noChartData: "No chart data available",
         loadingDashboard: "Loading your dashboard...",
         members: "members",
         joined: "Joined"
@@ -313,6 +316,9 @@ const resources = {
         notMemberOfAnyGroups: "لست عضواً في أي مجموعات بعد",
         performanceOverviewChart: "نظرة عامة على الأداء",
         scoringHistoryAndTrends: "تاريخ النتائج والاتجاهات",
+        categorizedWeeklyProgress: "التقدم الأسبوعي حسب الفئة",
+        loadingChart: "جاري تحميل الرسم البياني...",
+        noChartData: "لا توجد بيانات للرسم البياني",
         loadingDashboard: "جاري تحميل لوحة التحكم...",
         members: "أعضاء",
         joined: "انضم في"

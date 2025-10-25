@@ -8,6 +8,7 @@ from src.models.database_multi_org import (
 )
 import os
 import secrets
+import requests
 import uuid
 from decimal import Decimal
 import sys
@@ -388,6 +389,22 @@ def create_organization():
         )
         db.session.add(user_org)
         db.session.commit()
+        
+        # Create predefined categories for the new organization
+        try:
+            scoring_service_url = os.environ.get('SCORING_SERVICE_URL', 'http://scoring-service:5000')
+            response = requests.post(
+                f"{scoring_service_url}/scores/create-predefined-categories",
+                json={
+                    'organization_id': str(organization.id),
+                    'created_by': str(user.id)
+                },
+                timeout=5
+            )
+            if response.status_code != 201:
+                print(f"Warning: Failed to create predefined categories: {response.text}")
+        except Exception as e:
+            print(f"Warning: Could not create predefined categories: {str(e)}")
         
         # Generate new JWT token with organization context
         token = generate_jwt_token(user, organization.id)

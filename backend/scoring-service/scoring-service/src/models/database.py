@@ -14,6 +14,7 @@ class ScoreCategory(db.Model):
     organization_id = db.Column(db.String(36), nullable=False)
     created_by = db.Column(db.String(36), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
+    is_predefined = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -29,6 +30,7 @@ class ScoreCategory(db.Model):
             'organization_id': self.organization_id,
             'created_by': self.created_by,
             'is_active': self.is_active,
+            'is_predefined': self.is_predefined,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
