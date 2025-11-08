@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, UserIcon, GraduationCapIcon, PhoneIcon, MailIcon, LinkIcon, SettingsIcon } from "lucide-react";
+import { CalendarIcon, UserIcon, GraduationCapIcon, PhoneIcon, MailIcon, LinkIcon, SettingsIcon, Camera, Upload, User } from "lucide-react";
 import api from '../services/api';
 
 const UserProfile = ({ organizationId }) => {
@@ -18,6 +18,8 @@ const UserProfile = ({ organizationId }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
 
   const getSchoolYearOptions = () => [
     { value: 'year1', label: t('profile.year1') },
@@ -83,6 +85,66 @@ const UserProfile = ({ organizationId }) => {
     }));
   };
 
+  const handleImageUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Invalid file type. Please upload a JPG, PNG, GIF, or WebP image.');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target.result);
+    reader.readAsDataURL(file);
+
+    // Upload file
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await api.post('/profile/upload-picture', formData);
+
+      // Update profile with new picture URL
+      setProfile(prev => ({
+        ...prev,
+        profile_picture_url: response.data.profile_picture_url
+      }));
+
+      setSuccess('Profile picture updated successfully!');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setError(error.response?.data?.error || 'Failed to upload image');
+      setImagePreview(null);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const getProfilePictureUrl = () => {
+    if (imagePreview) return imagePreview;
+    if (profile.profile_picture_url) {
+      // Handle both relative and absolute URLs
+      if (profile.profile_picture_url.startsWith('http')) {
+        return profile.profile_picture_url;
+      }
+      return `${window.location.origin}${profile.profile_picture_url}`;
+    }
+    return null;
+  };
+
   if (loading) {
     return <div className="flex justify-center p-8">Loading profile...</div>;
   }
@@ -128,6 +190,48 @@ const UserProfile = ({ organizationId }) => {
               <CardTitle>{t('profile.personalInfo')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Profile Picture Section */}
+              <div className="flex flex-col items-center space-y-4 pb-6 border-b">
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center border-4 border-white shadow-lg">
+                    {getProfilePictureUrl() ? (
+                      <img 
+                        src={getProfilePictureUrl()} 
+                        alt="Profile" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-16 h-16 text-gray-400" />
+                    )}
+                  </div>
+                  <label 
+                    htmlFor="profile-picture-upload"
+                    className="absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full cursor-pointer transition-colors shadow-lg"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </label>
+                  <input
+                    id="profile-picture-upload"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    disabled={uploadingImage}
+                  />
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-900">
+                    {profile.first_name && profile.last_name 
+                      ? `${profile.first_name} ${profile.last_name}` 
+                      : profile.username || 'User'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {uploadingImage ? 'Uploading...' : 'Click camera icon to change picture'}
+                  </p>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="first_name">{t('profile.firstName')}</Label>

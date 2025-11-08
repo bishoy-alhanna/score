@@ -53,7 +53,8 @@ def fetch_user_details(user_ids, auth_token):
                         'first_name': user_data.get('first_name', ''),
                         'last_name': user_data.get('last_name', ''),
                         'username': user_data.get('username', ''),
-                        'email': user_data.get('email', '')
+                        'email': user_data.get('email', ''),
+                        'profile_picture_url': user_data.get('profile_picture_url', '')
                     }
                 else:
                     # Fallback for missing user
@@ -61,7 +62,8 @@ def fetch_user_details(user_ids, auth_token):
                         'first_name': '',
                         'last_name': '',
                         'username': f'User {str(user_id)[:8]}',
-                        'email': ''
+                        'email': '',
+                        'profile_picture_url': ''
                     }
             except Exception as e:
                 # Fallback for API errors
@@ -69,7 +71,8 @@ def fetch_user_details(user_ids, auth_token):
                     'first_name': '',
                     'last_name': '',
                     'username': f'User {str(user_id)[:8]}',
-                    'email': ''
+                    'email': '',
+                    'profile_picture_url': ''
                 }
         
         return user_details
@@ -262,6 +265,7 @@ def get_user_leaderboard():
                 'first_name': user_info.get('first_name', ''),
                 'last_name': user_info.get('last_name', ''),
                 'username': user_info.get('username', ''),
+                'profile_picture_url': user_info.get('profile_picture_url', ''),
                 'total_score': aggregate.total_score,
                 'score_count': aggregate.score_count,
                 'average_score': aggregate.average_score,

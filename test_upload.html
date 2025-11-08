@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Picture Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, button {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Profile Picture Upload Test</h1>
+    
+    <div class="form-group">
+        <label for="username">Username:</label>
+        <input type="text" id="username" value="bfawzy" />
+    </div>
+    
+    <div class="form-group">
+        <label for="password">Password:</label>
+        <input type="password" id="password" value="bfawzybfawzy" />
+    </div>
+    
+    <div class="form-group">
+        <label for="organization">Organization:</label>
+        <input type="text" id="organization" value="youth26" />
+    </div>
+    
+    <div class="form-group">
+        <button onclick="login()">Login</button>
+        <span id="loginStatus"></span>
+    </div>
+    
+    <hr>
+    
+    <div class="form-group">
+        <label for="profilePicture">Profile Picture:</label>
+        <input type="file" id="profilePicture" accept="image/*" />
+    </div>
+    
+    <div class="form-group">
+        <button onclick="uploadProfilePicture()" id="uploadBtn" disabled>Upload Profile Picture</button>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        let authToken = null;
+        
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const organization = document.getElementById('organization').value;
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        organization_name: organization
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    authToken = data.token;
+                    document.getElementById('loginStatus').textContent = '✓ Logged in successfully';
+                    document.getElementById('loginStatus').style.color = 'green';
+                    document.getElementById('uploadBtn').disabled = false;
+                } else {
+                    document.getElementById('loginStatus').textContent = '✗ Login failed: ' + (data.error || 'Unknown error');
+                    document.getElementById('loginStatus').style.color = 'red';
+                }
+            } catch (error) {
+                document.getElementById('loginStatus').textContent = '✗ Login error: ' + error.message;
+                document.getElementById('loginStatus').style.color = 'red';
+            }
+        }
+        
+        async function uploadProfilePicture() {
+            const fileInput = document.getElementById('profilePicture');
+            const resultDiv = document.getElementById('result');
+            
+            if (!authToken) {
+                resultDiv.innerHTML = '<div class="error">Please login first</div>';
+                return;
+            }
+            
+            if (!fileInput.files[0]) {
+                resultDiv.innerHTML = '<div class="error">Please select a file</div>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                resultDiv.innerHTML = '<div>Uploading...</div>';
+                
+                const response = await fetch('/api/profile/upload-picture', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                        // Don't set Content-Type - let browser set it automatically with boundary
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">
+                        <strong>Success!</strong><br>
+                        Message: ${data.message}<br>
+                        Profile Picture URL: ${data.profile_picture_url}
+                    </div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">
+                        <strong>Error:</strong> ${data.error || 'Upload failed'}
+                    </div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">
+                    <strong>Network Error:</strong> ${error.message}
+                </div>`;
+            }
+        }
+    </script>
+</body>
+</html>

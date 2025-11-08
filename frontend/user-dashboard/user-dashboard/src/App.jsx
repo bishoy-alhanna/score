@@ -412,7 +412,20 @@ function DashboardLayout({ children }) {
             <div className="flex items-center space-x-4">
               <LanguageSwitcher />
               <Badge variant="secondary">{user?.role}</Badge>
-              <span className="text-sm text-gray-700">{user?.username}</span>
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                  {user?.profile_picture_url ? (
+                    <img 
+                      src={user.profile_picture_url.startsWith('http') ? user.profile_picture_url : `${window.location.origin}${user.profile_picture_url}`} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-4 h-4 text-gray-400" />
+                  )}
+                </div>
+                <span className="text-sm text-gray-700">{user?.username}</span>
+              </div>
               <Button variant="outline" size="sm" onClick={logout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 {t('auth.logout')}
@@ -751,9 +764,20 @@ function Dashboard() {
                     }`}>
                       {entry.rank}
                     </div>
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                      {entry.profile_picture_url ? (
+                        <img 
+                          src={entry.profile_picture_url.startsWith('http') ? entry.profile_picture_url : `${window.location.origin}${entry.profile_picture_url}`} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
                     <div>
                       <p className="font-medium">
-                        {entry.user_id === user.id ? 'You' : `User ${entry.user_id.slice(0, 8)}`}
+                        {entry.user_id === user.id ? 'You' : (entry.display_name || `User ${entry.user_id.slice(0, 8)}`)}
                       </p>
                       <p className="text-sm text-gray-600">{entry.score_count} scores</p>
                     </div>

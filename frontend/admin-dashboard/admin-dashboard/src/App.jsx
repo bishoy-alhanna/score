@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { 
   Users, UserPlus, Trophy, BarChart3, Settings, LogOut, Building2, 
   UserCheck, UserX, Clock, Plus, CheckCircle, XCircle, Shield,
@@ -1903,6 +1904,76 @@ function LeaderboardManagement() {
   const [activeTab, setActiveTab] = useState('users')
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+  
+  // User Profiles Management State
+  const [userProfiles, setUserProfiles] = useState([])
+  const [userProfilesLoading, setUserProfilesLoading] = useState(false)
+  const [userProfilesError, setUserProfilesError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalUsers, setTotalUsers] = useState(0)
+  
+  // Export Settings State
+  const [showExportSettings, setShowExportSettings] = useState(false)
+  const [exportFields, setExportFields] = useState({
+    // Basic Information - default enabled
+    fullName: true,
+    firstName: true,
+    lastName: true,
+    email: true,
+    username: true,
+    role: true,
+    department: false,
+    title: false,
+    phoneNumber: true,
+    gender: false,
+    birthDate: false,
+    bio: false,
+    
+    // Academic Information - default disabled
+    studentId: false,
+    major: false,
+    schoolYear: false,
+    gpa: false,
+    graduationYear: false,
+    
+    // Address Information - default disabled
+    addressLine1: false,
+    addressLine2: false,
+    city: false,
+    state: false,
+    postalCode: false,
+    country: false,
+    
+    // Emergency Contact - default disabled
+    emergencyContactName: false,
+    emergencyContactPhone: false,
+    emergencyContactRelationship: false,
+    
+    // Social Links - default disabled
+    linkedinUrl: false,
+    githubUrl: false,
+    personalWebsite: false,
+    
+    // System Information - default disabled
+    language: false,
+    timezone: false,
+    notificationPreferences: false,
+    
+    // Status Information - default enabled
+    isVerified: true,
+    isActive: true,
+    emailVerified: false,
+    hasQrCode: false,
+    lastLogin: false,
+    
+    // Dates - default enabled
+    joinedOrganization: true,
+    accountCreated: false,
+    lastUpdated: false
+  })
+  
   const { currentOrganization } = useAuth()
 
   useEffect(() => {
@@ -1917,6 +1988,13 @@ function LeaderboardManagement() {
       fetchLeaderboards()
     }
   }, [selectedCategory])
+
+  // Fetch user profiles when tab is active or dependencies change
+  useEffect(() => {
+    if (currentOrganization?.organization_id && activeTab === 'user-profiles') {
+      fetchUserProfiles()
+    }
+  }, [currentOrganization, activeTab, currentPage, searchTerm])
 
   const fetchCategories = async () => {
     try {
@@ -1948,6 +2026,138 @@ function LeaderboardManagement() {
       setError('Failed to fetch leaderboards')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchUserProfiles = async () => {
+    try {
+      setUserProfilesLoading(true)
+      setUserProfilesError('')
+      
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        per_page: '10'
+      })
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim())
+      }
+      
+      const response = await api.get(`/profile/organization-users?${params}&organization_id=${currentOrganization.organization_id}`)
+      
+      setUserProfiles(response.data.users || [])
+      setTotalUsers(response.data.total || 0)
+      setTotalPages(response.data.pages || 1)
+    } catch (error) {
+      setUserProfilesError('Failed to fetch user profiles')
+      console.error('Error fetching user profiles:', error)
+    } finally {
+      setUserProfilesLoading(false)
+    }
+  }
+
+  // Helper function to get field mappings
+  const getFieldMapping = () => ({
+    fullName: { 
+      label: 'Full Name', 
+      getValue: (user) => user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || `User ${user.user_id?.slice(0, 8)}` 
+    },
+    firstName: { label: 'First Name', getValue: (user) => user.first_name || '' },
+    lastName: { label: 'Last Name', getValue: (user) => user.last_name || '' },
+    email: { label: 'Email', getValue: (user) => user.email || '' },
+    username: { label: 'Username', getValue: (user) => user.username || '' },
+    role: { label: 'Role', getValue: (user) => user.role || '' },
+    department: { label: 'Department', getValue: (user) => user.department || '' },
+    title: { label: 'Title', getValue: (user) => user.title || '' },
+    phoneNumber: { label: 'Phone Number', getValue: (user) => user.phone_number || '' },
+    gender: { label: 'Gender', getValue: (user) => user.gender || '' },
+    birthDate: { label: 'Birth Date', getValue: (user) => user.birthdate ? new Date(user.birthdate).toLocaleDateString() : '' },
+    bio: { label: 'Bio', getValue: (user) => user.bio || '' },
+    
+    studentId: { label: 'Student ID', getValue: (user) => user.student_id || '' },
+    major: { label: 'Major', getValue: (user) => user.major || '' },
+    schoolYear: { label: 'School Year', getValue: (user) => user.school_year || '' },
+    gpa: { label: 'GPA', getValue: (user) => user.gpa || '' },
+    graduationYear: { label: 'Graduation Year', getValue: (user) => user.graduation_year || '' },
+    
+    addressLine1: { label: 'Address Line 1', getValue: (user) => user.address_line1 || '' },
+    addressLine2: { label: 'Address Line 2', getValue: (user) => user.address_line2 || '' },
+    city: { label: 'City', getValue: (user) => user.city || '' },
+    state: { label: 'State', getValue: (user) => user.state || '' },
+    postalCode: { label: 'Postal Code', getValue: (user) => user.postal_code || '' },
+    country: { label: 'Country', getValue: (user) => user.country || '' },
+    
+    emergencyContactName: { label: 'Emergency Contact Name', getValue: (user) => user.emergency_contact_name || '' },
+    emergencyContactPhone: { label: 'Emergency Contact Phone', getValue: (user) => user.emergency_contact_phone || '' },
+    emergencyContactRelationship: { label: 'Emergency Contact Relationship', getValue: (user) => user.emergency_contact_relationship || '' },
+    
+    linkedinUrl: { label: 'LinkedIn URL', getValue: (user) => user.linkedin_url || '' },
+    githubUrl: { label: 'GitHub URL', getValue: (user) => user.github_url || '' },
+    personalWebsite: { label: 'Personal Website', getValue: (user) => user.personal_website || '' },
+    
+    language: { label: 'Language', getValue: (user) => user.language || '' },
+    timezone: { label: 'Timezone', getValue: (user) => user.timezone || '' },
+    notificationPreferences: { label: 'Notification Preferences', getValue: (user) => user.notification_preferences ? JSON.stringify(user.notification_preferences) : '' },
+    
+    isVerified: { label: 'Is Verified', getValue: (user) => user.is_verified ? 'Yes' : 'No' },
+    isActive: { label: 'Is Active', getValue: (user) => user.is_active ? 'Yes' : 'No' },
+    emailVerified: { label: 'Email Verified', getValue: (user) => user.email_verified_at ? 'Yes' : 'No' },
+    hasQrCode: { label: 'Has QR Code', getValue: (user) => user.has_qr_code ? 'Yes' : 'No' },
+    lastLogin: { label: 'Last Login', getValue: (user) => user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : '' },
+    
+    joinedOrganization: { label: 'Joined Organization', getValue: (user) => user.joined_at ? new Date(user.joined_at).toLocaleDateString() : '' },
+    accountCreated: { label: 'Account Created', getValue: (user) => user.created_at ? new Date(user.created_at).toLocaleDateString() : '' },
+    lastUpdated: { label: 'Last Updated', getValue: (user) => user.updated_at ? new Date(user.updated_at).toLocaleDateString() : '' }
+  })
+
+  const exportToExcel = async () => {
+    try {
+      // First, fetch ALL users (not just current page) for export
+      const params = new URLSearchParams({
+        page: '1',
+        per_page: totalUsers.toString() // Get all users
+      })
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim())
+      }
+      
+      const response = await api.get(`/profile/organization-users?${params}&organization_id=${currentOrganization.organization_id}`)
+      const allUsers = response.data.users || []
+      
+      // Get only selected fields
+      const fieldMapping = getFieldMapping()
+      const selectedFields = Object.keys(exportFields).filter(field => exportFields[field])
+      
+      if (selectedFields.length === 0) {
+        alert('Please select at least one field to export.')
+        return
+      }
+      
+      // Build headers and rows based on selected fields
+      const csvHeaders = selectedFields.map(field => fieldMapping[field].label)
+      const csvRows = allUsers.map(user => 
+        selectedFields.map(field => fieldMapping[field].getValue(user))
+      )
+      
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n')
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `user-profiles-${currentOrganization?.name || 'org'}-${new Date().toISOString().split('T')[0]}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+    } catch (error) {
+      console.error('Error exporting user profiles:', error)
+      alert('Failed to export user profiles. Please try again.')
     }
   }
 
@@ -1992,6 +2202,7 @@ function LeaderboardManagement() {
         <TabsList>
           <TabsTrigger value="users">{t('leaderboards.userLeaderboard')}</TabsTrigger>
           <TabsTrigger value="groups">{t('leaderboards.groupLeaderboard')}</TabsTrigger>
+          <TabsTrigger value="user-profiles">User Profiles</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users">
@@ -2056,6 +2267,543 @@ function LeaderboardManagement() {
                   <p className="text-center text-gray-500 py-8">{t('leaderboards.noGroupsFound')}</p>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="user-profiles">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Organization User Profiles</span>
+                <div className="flex gap-2">
+                  <Dialog open={showExportSettings} onOpenChange={setShowExportSettings}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Export Settings
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Export Field Settings</DialogTitle>
+                        <DialogDescription>
+                          Select which fields to include in the CSV export. Changes are saved automatically.
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4">
+                        
+                        {/* Basic Information */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-sm text-gray-900">Basic Information</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="fullName"
+                                checked={exportFields.fullName}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, fullName: checked}))}
+                              />
+                              <Label htmlFor="fullName" className="text-sm">Full Name</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="firstName"
+                                checked={exportFields.firstName}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, firstName: checked}))}
+                              />
+                              <Label htmlFor="firstName" className="text-sm">First Name</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="lastName"
+                                checked={exportFields.lastName}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, lastName: checked}))}
+                              />
+                              <Label htmlFor="lastName" className="text-sm">Last Name</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="email"
+                                checked={exportFields.email}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, email: checked}))}
+                              />
+                              <Label htmlFor="email" className="text-sm">Email</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="username"
+                                checked={exportFields.username}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, username: checked}))}
+                              />
+                              <Label htmlFor="username" className="text-sm">Username</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="role"
+                                checked={exportFields.role}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, role: checked}))}
+                              />
+                              <Label htmlFor="role" className="text-sm">Role</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="department"
+                                checked={exportFields.department}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, department: checked}))}
+                              />
+                              <Label htmlFor="department" className="text-sm">Department</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="title"
+                                checked={exportFields.title}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, title: checked}))}
+                              />
+                              <Label htmlFor="title" className="text-sm">Title</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="phoneNumber"
+                                checked={exportFields.phoneNumber}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, phoneNumber: checked}))}
+                              />
+                              <Label htmlFor="phoneNumber" className="text-sm">Phone Number</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="gender"
+                                checked={exportFields.gender}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, gender: checked}))}
+                              />
+                              <Label htmlFor="gender" className="text-sm">Gender</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="birthDate"
+                                checked={exportFields.birthDate}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, birthDate: checked}))}
+                              />
+                              <Label htmlFor="birthDate" className="text-sm">Birth Date</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="bio"
+                                checked={exportFields.bio}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, bio: checked}))}
+                              />
+                              <Label htmlFor="bio" className="text-sm">Bio</Label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Academic Information */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-sm text-gray-900">Academic Information</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="studentId"
+                                checked={exportFields.studentId}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, studentId: checked}))}
+                              />
+                              <Label htmlFor="studentId" className="text-sm">Student ID</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="major"
+                                checked={exportFields.major}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, major: checked}))}
+                              />
+                              <Label htmlFor="major" className="text-sm">Major</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="schoolYear"
+                                checked={exportFields.schoolYear}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, schoolYear: checked}))}
+                              />
+                              <Label htmlFor="schoolYear" className="text-sm">School Year</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="gpa"
+                                checked={exportFields.gpa}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, gpa: checked}))}
+                              />
+                              <Label htmlFor="gpa" className="text-sm">GPA</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="graduationYear"
+                                checked={exportFields.graduationYear}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, graduationYear: checked}))}
+                              />
+                              <Label htmlFor="graduationYear" className="text-sm">Graduation Year</Label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Address Information */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-sm text-gray-900">Address Information</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="addressLine1"
+                                checked={exportFields.addressLine1}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, addressLine1: checked}))}
+                              />
+                              <Label htmlFor="addressLine1" className="text-sm">Address Line 1</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="addressLine2"
+                                checked={exportFields.addressLine2}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, addressLine2: checked}))}
+                              />
+                              <Label htmlFor="addressLine2" className="text-sm">Address Line 2</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="city"
+                                checked={exportFields.city}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, city: checked}))}
+                              />
+                              <Label htmlFor="city" className="text-sm">City</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="state"
+                                checked={exportFields.state}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, state: checked}))}
+                              />
+                              <Label htmlFor="state" className="text-sm">State</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="postalCode"
+                                checked={exportFields.postalCode}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, postalCode: checked}))}
+                              />
+                              <Label htmlFor="postalCode" className="text-sm">Postal Code</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="country"
+                                checked={exportFields.country}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, country: checked}))}
+                              />
+                              <Label htmlFor="country" className="text-sm">Country</Label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-4 border-t">
+                        
+                        {/* Emergency Contact */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-sm text-gray-900">Emergency Contact</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="emergencyContactName"
+                                checked={exportFields.emergencyContactName}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, emergencyContactName: checked}))}
+                              />
+                              <Label htmlFor="emergencyContactName" className="text-sm">Emergency Contact Name</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="emergencyContactPhone"
+                                checked={exportFields.emergencyContactPhone}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, emergencyContactPhone: checked}))}
+                              />
+                              <Label htmlFor="emergencyContactPhone" className="text-sm">Emergency Contact Phone</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="emergencyContactRelationship"
+                                checked={exportFields.emergencyContactRelationship}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, emergencyContactRelationship: checked}))}
+                              />
+                              <Label htmlFor="emergencyContactRelationship" className="text-sm">Emergency Contact Relationship</Label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Social Links */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-sm text-gray-900">Social Links</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="linkedinUrl"
+                                checked={exportFields.linkedinUrl}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, linkedinUrl: checked}))}
+                              />
+                              <Label htmlFor="linkedinUrl" className="text-sm">LinkedIn URL</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="githubUrl"
+                                checked={exportFields.githubUrl}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, githubUrl: checked}))}
+                              />
+                              <Label htmlFor="githubUrl" className="text-sm">GitHub URL</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="personalWebsite"
+                                checked={exportFields.personalWebsite}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, personalWebsite: checked}))}
+                              />
+                              <Label htmlFor="personalWebsite" className="text-sm">Personal Website</Label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Status & Dates */}
+                        <div className="space-y-3">
+                          <h4 className="font-medium text-sm text-gray-900">Status & Dates</h4>
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="isVerified"
+                                checked={exportFields.isVerified}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, isVerified: checked}))}
+                              />
+                              <Label htmlFor="isVerified" className="text-sm">Is Verified</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="isActive"
+                                checked={exportFields.isActive}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, isActive: checked}))}
+                              />
+                              <Label htmlFor="isActive" className="text-sm">Is Active</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="emailVerified"
+                                checked={exportFields.emailVerified}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, emailVerified: checked}))}
+                              />
+                              <Label htmlFor="emailVerified" className="text-sm">Email Verified</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="hasQrCode"
+                                checked={exportFields.hasQrCode}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, hasQrCode: checked}))}
+                              />
+                              <Label htmlFor="hasQrCode" className="text-sm">Has QR Code</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="lastLogin"
+                                checked={exportFields.lastLogin}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, lastLogin: checked}))}
+                              />
+                              <Label htmlFor="lastLogin" className="text-sm">Last Login</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="joinedOrganization"
+                                checked={exportFields.joinedOrganization}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, joinedOrganization: checked}))}
+                              />
+                              <Label htmlFor="joinedOrganization" className="text-sm">Joined Organization</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="accountCreated"
+                                checked={exportFields.accountCreated}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, accountCreated: checked}))}
+                              />
+                              <Label htmlFor="accountCreated" className="text-sm">Account Created</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="lastUpdated"
+                                checked={exportFields.lastUpdated}
+                                onCheckedChange={(checked) => setExportFields(prev => ({...prev, lastUpdated: checked}))}
+                              />
+                              <Label htmlFor="lastUpdated" className="text-sm">Last Updated</Label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-4 border-t">
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              // Select All
+                              setExportFields(prev => Object.keys(prev).reduce((acc, key) => ({...acc, [key]: true}), {}))
+                            }}
+                          >
+                            Select All
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              // Select None
+                              setExportFields(prev => Object.keys(prev).reduce((acc, key) => ({...acc, [key]: false}), {}))
+                            }}
+                          >
+                            Select None
+                          </Button>
+                        </div>
+                        <Button onClick={() => setShowExportSettings(false)}>
+                          Done
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  
+                  <Button 
+                    onClick={exportToExcel}
+                    variant="outline"
+                    size="sm"
+                    disabled={userProfiles.length === 0}
+                  >
+                    Export to CSV ({userProfiles.length} users, {Object.values(exportFields).filter(Boolean).length} fields)
+                  </Button>
+                </div>
+              </CardTitle>
+              <CardDescription>
+                View and manage all user profiles in your organization ({totalUsers} total users)
+              </CardDescription>
+              <div className="flex items-center gap-4 mt-4">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search by name, email, or username..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      setCurrentPage(1) // Reset to first page when searching
+                    }}
+                    className="max-w-md"
+                  />
+                </div>
+                <Button onClick={fetchUserProfiles} variant="outline" size="sm">
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {userProfilesError && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                  {userProfilesError}
+                </div>
+              )}
+              
+              {userProfilesLoading ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  <span className="ml-2">Loading user profiles...</span>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-gray-200">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="border border-gray-200 px-4 py-2 text-left">Name</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Email</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Username</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Role</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Department</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Title</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Phone</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">City</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Major</th>
+                          <th className="border border-gray-200 px-4 py-2 text-left">Joined</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userProfiles.map((user) => (
+                          <tr key={user.user_id} className="hover:bg-gray-50">
+                            <td className="border border-gray-200 px-4 py-2">
+                              <div className="flex items-center gap-2">
+                                {user.profile_picture_url && (
+                                  <img 
+                                    src={user.profile_picture_url} 
+                                    alt="Profile" 
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                )}
+                                <span>
+                                  {user.display_name || 
+                                   `${user.first_name || ''} ${user.last_name || ''}`.trim() || 
+                                   user.username || 
+                                   `User ${user.user_id?.slice(0, 8)}`}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="border border-gray-200 px-4 py-2">{user.email || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">{user.username || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                user.role === 'ORG_ADMIN' ? 'bg-purple-100 text-purple-800' :
+                                user.role === 'MEMBER' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {user.role || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="border border-gray-200 px-4 py-2">{user.department || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">{user.title || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">{user.phone_number || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">{user.city || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">{user.major || 'N/A'}</td>
+                            <td className="border border-gray-200 px-4 py-2">
+                              {user.joined_at ? new Date(user.joined_at).toLocaleDateString() : 'N/A'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {userProfiles.length === 0 && !userProfilesLoading && (
+                    <p className="text-center text-gray-500 py-8">
+                      {searchTerm ? 'No users found matching your search.' : 'No users found in this organization.'}
+                    </p>
+                  )}
+                  
+                  {totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-6">
+                      <div className="text-sm text-gray-600">
+                        Showing page {currentPage} of {totalPages} ({totalUsers} total users)
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={currentPage === totalPages}
+                          variant="outline"
+                          size="sm"
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard Navigation Guide</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .step {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .highlight {
+            background: #e8f4fd;
+            color: #0066cc;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 15px 0;
+        }
+        .admin-credentials {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 User Profiles Feature - Navigation Guide</h1>
+    
+    <div class="note">
+        <strong>✅ Feature Status:</strong> The User Profiles management feature has been successfully implemented and is ready for use!
+    </div>
+
+    <h2>📍 How to Access User Profiles</h2>
+    
+    <div class="step">
+        <h3>Step 1: Access Admin Dashboard</h3>
+        <p>Navigate to: <code>http://localhost/admin</code></p>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Login as Organization Admin</h3>
+        <div class="admin-credentials">
+            <strong>Available Admin Users:</strong>
+            <ul>
+                <li>Username: <code>admin</code> | Organization: <code>youth26</code></li>
+                <li>Username: <code>bfawzy</code> | Organization: <code>youth26</code></li>
+                <li>Username: <code>bhanna</code> | Organization: <code>youth26</code></li>
+                <li>Username: <code>workingadmin</code> | Organization: <code>Working Demo Org</code></li>
+            </ul>
+            <p><em>Password for all: <code>password</code></em></p>
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Navigate to Leaderboards</h3>
+        <p>Click on the <span class="highlight">"Leaderboards"</span> tab (5th tab in main navigation)</p>
+        <p><em>This tab contains user and group leaderboards + the new User Profiles feature</em></p>
+    </div>
+
+    <div class="step">
+        <h3>Step 4: Access User Profiles</h3>
+        <p>Within the Leaderboards section, you'll see 3 sub-tabs:</p>
+        <ul>
+            <li>User Leaderboard</li>
+            <li>Group Leaderboard</li>
+            <li><span class="highlight">User Profiles</span> ← <strong>Click here!</strong></li>
+        </ul>
+    </div>
+
+    <h2>🎉 What You'll See in User Profiles</h2>
+    
+    <div class="step">
+        <h3>✨ Complete User Management Table</h3>
+        <ul>
+            <li><strong>User Information:</strong> Name, Email, Username</li>
+            <li><strong>Profile Pictures:</strong> Thumbnails for users who uploaded photos</li>
+            <li><strong>Roles:</strong> Color-coded badges (ORG_ADMIN, MEMBER, etc.)</li>
+            <li><strong>Profile Data:</strong> Department, Title, Join Date</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>🔍 Search & Navigation</h3>
+        <ul>
+            <li><strong>Real-time Search:</strong> By name, email, or username</li>
+            <li><strong>Pagination:</strong> Navigate through pages of users</li>
+            <li><strong>Refresh Button:</strong> Manually reload data</li>
+        </ul>
+    </div>
+
+    <div class="step">
+        <h3>📊 Export Functionality</h3>
+        <ul>
+            <li><strong>CSV Export:</strong> Download all user data</li>
+            <li><strong>Filtered Export:</strong> Respects search terms</li>
+            <li><strong>Automatic Filename:</strong> Includes org name and date</li>
+        </ul>
+    </div>
+
+    <div class="note">
+        <strong>🔒 Security Note:</strong> Only users with <code>ORG_ADMIN</code> role can access user profiles data. Regular users will not see this feature.
+    </div>
+
+    <h2>🔧 Technical Implementation</h2>
+    <p>The feature includes:</p>
+    <ul>
+        <li><strong>Backend API:</strong> <code>/auth/organization-users</code> endpoint with pagination and search</li>
+        <li><strong>Frontend UI:</strong> React table with responsive design and shadcn/ui components</li>
+        <li><strong>Real-time Features:</strong> Search, pagination, loading states, error handling</li>
+        <li><strong>Data Export:</strong> CSV generation and download functionality</li>
+    </ul>
+
+    <p><em>If you don't see the User Profiles tab, make sure you're logged in as an organization admin and navigate to: Main Dashboard → Leaderboards Tab → User Profiles Sub-tab</em></p>
+</body>
+</html>

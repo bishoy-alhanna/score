@@ -91,13 +91,25 @@ def proxy_request(service_url, path='', method=None):
         if method == 'GET':
             response = requests.get(url, headers=headers, params=request.args, timeout=30)
         elif method == 'POST':
-            # Handle both JSON and non-JSON POST requests
-            try:
+            # Handle different types of POST requests
+            content_type = request.content_type or ''
+            
+            if 'multipart/form-data' in content_type:
+                # Handle file uploads - forward the files and form data
+                files = {}
+                for key, file in request.files.items():
+                    files[key] = (file.filename, file.stream, file.content_type)
+                
+                form_data = dict(request.form)
+                response = requests.post(url, headers={k: v for k, v in headers.items() if k.lower() != 'content-type'}, 
+                                       files=files, data=form_data, timeout=30)
+            elif 'application/json' in content_type:
+                # Handle JSON data
                 json_data = request.get_json()
                 response = requests.post(url, headers=headers, json=json_data, timeout=30)
-            except:
-                # If no JSON body, send empty JSON or raw data
-                response = requests.post(url, headers=headers, json={}, timeout=30)
+            else:
+                # Handle other types of data
+                response = requests.post(url, headers=headers, data=request.data, timeout=30)
         elif method == 'PUT':
             try:
                 json_data = request.get_json()

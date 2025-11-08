@@ -66,7 +66,7 @@ def update_profile():
             'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
             'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
             'linkedin_url', 'github_url', 'personal_website',
-            'timezone', 'language', 'notification_preferences'
+            'timezone', 'language', 'notification_preferences', 'profile_picture_url'
         ]
         
         # Update only provided fields
@@ -210,12 +210,213 @@ def search_users():
 
 @profile_bp.route('/upload-picture', methods=['POST'])
 def upload_profile_picture():
-    """Upload profile picture (placeholder for file upload)"""
+    """Upload profile picture"""
     user = verify_token()
     if not user:
         return jsonify({'error': 'Authentication required'}), 401
     
-    # This is a placeholder - you would integrate with a file storage service
-    # like AWS S3, Google Cloud Storage, or local file storage
+    print(f"DEBUG: request.files keys: {list(request.files.keys())}")
+    print(f"DEBUG: request.form keys: {list(request.form.keys())}")
+    print(f"DEBUG: request content type: {request.content_type}")
     
-    return jsonify({'error': 'File upload not implemented yet'}), 501
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    # Validate file type
+    allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+    if not file.filename.lower().split('.')[-1] in allowed_extensions:
+        return jsonify({'error': 'Invalid file type. Allowed: jpg, jpeg, png, gif, webp'}), 400
+    
+    # Validate file size (max 5MB)
+    file.seek(0, 2)  # Seek to end of file
+    file_size = file.tell()
+    file.seek(0)  # Reset file pointer
+    
+    if file_size > 5 * 1024 * 1024:  # 5MB
+        return jsonify({'error': 'File too large. Maximum size is 5MB'}), 400
+    
+    try:
+        from PIL import Image
+        import uuid
+        import os
+        
+        # Create uploads directory if it doesn't exist
+        uploads_dir = '/app/uploads/profile_pictures'
+        os.makedirs(uploads_dir, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.lower().split('.')[-1]
+        filename = f"{user.id}_{uuid.uuid4().hex}.{file_extension}"
+        file_path = os.path.join(uploads_dir, filename)
+        
+        # Open and process the image
+        image = Image.open(file.stream)
+        
+        # Convert to RGB if necessary (for JPEG)
+        if image.mode in ('RGBA', 'P'):
+            image = image.convert('RGB')
+        
+        # Resize image to max 512x512 while maintaining aspect ratio
+        image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+        
+        # Save the processed image
+        image.save(file_path, optimize=True, quality=85)
+        
+        # Update user's profile picture URL
+        profile_picture_url = f'/uploads/profile_pictures/{filename}'
+        user.profile_picture_url = profile_picture_url
+        user.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Profile picture uploaded successfully',
+            'profile_picture_url': profile_picture_url
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error uploading profile picture: {str(e)}")
+        return jsonify({'error': 'Failed to process image'}), 500
+
+@profile_bp.route('/picture/<filename>', methods=['GET'])
+def serve_profile_picture(filename):
+    """Serve profile picture files"""
+    try:
+        from flask import send_from_directory
+        import os
+        
+        uploads_dir = '/app/uploads/profile_pictures'
+        return send_from_directory(uploads_dir, filename)
+    except Exception as e:
+        return jsonify({'error': 'Image not found'}), 404
+
+@profile_bp.route('/organization-users', methods=['GET'])
+def get_organization_users():
+    """Get all users in organization (admin only)"""
+    user = verify_token()
+    if not user:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    organization_id = request.args.get('organization_id')
+    if not organization_id:
+        return jsonify({'error': 'Organization ID is required'}), 400
+    
+    # Check if user is admin of the organization
+    membership = UserOrganization.query.filter_by(
+        user_id=user.id,
+        organization_id=organization_id,
+        is_active=True
+    ).first()
+    
+    if not membership or membership.role != 'ORG_ADMIN':
+        return jsonify({'error': 'Admin access required'}), 403
+    
+    try:
+        # Get pagination parameters
+        page = int(request.args.get('page', 1))
+        per_page = min(int(request.args.get('per_page', 50)), 100)  # Max 100 users per page
+        search = request.args.get('search', '').strip()
+        
+        # Build query for users in the organization
+        users_query = db.session.query(User).join(UserOrganization).filter(
+            UserOrganization.organization_id == organization_id,
+            UserOrganization.is_active == True,
+            User.is_active == True
+        )
+        
+        # Apply search filter if provided
+        if search:
+            users_query = users_query.filter(
+                db.or_(
+                    User.first_name.ilike(f'%{search}%'),
+                    User.last_name.ilike(f'%{search}%'),
+                    User.username.ilike(f'%{search}%'),
+                    User.email.ilike(f'%{search}%')
+                )
+            )
+        
+        # Get paginated results
+        users_pagination = users_query.paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+        
+        # Format user data with ALL profile information
+        users_data = []
+        for user_obj in users_pagination.items:
+            user_membership = UserOrganization.query.filter_by(
+                user_id=user_obj.id,
+                organization_id=organization_id
+            ).first()
+            
+            # Create comprehensive user data dictionary with all available fields
+            user_data = {
+                'id': str(user_obj.id),
+                'username': user_obj.username,
+                'email': user_obj.email,
+                'first_name': user_obj.first_name,
+                'last_name': user_obj.last_name,
+                'profile_picture_url': user_obj.profile_picture_url,
+                'is_active': user_obj.is_active,
+                'created_at': user_obj.created_at.isoformat() if user_obj.created_at else None,
+                'updated_at': user_obj.updated_at.isoformat() if user_obj.updated_at else None,
+                'birthdate': user_obj.birthdate.isoformat() if user_obj.birthdate else None,
+                'phone_number': user_obj.phone_number,
+                'bio': user_obj.bio,
+                'gender': user_obj.gender,
+                'school_year': user_obj.school_year,
+                'student_id': user_obj.student_id,
+                'major': user_obj.major,
+                'gpa': user_obj.gpa,
+                'graduation_year': user_obj.graduation_year,
+                # Address information
+                'address_line1': user_obj.address_line1,
+                'address_line2': user_obj.address_line2,
+                'city': user_obj.city,
+                'state': user_obj.state,
+                'postal_code': user_obj.postal_code,
+                'country': user_obj.country,
+                # Emergency contact
+                'emergency_contact_name': user_obj.emergency_contact_name,
+                'emergency_contact_phone': user_obj.emergency_contact_phone,
+                'emergency_contact_relationship': user_obj.emergency_contact_relationship,
+                # Social links
+                'linkedin_url': user_obj.linkedin_url,
+                'github_url': user_obj.github_url,
+                'personal_website': user_obj.personal_website,
+                # System settings
+                'timezone': user_obj.timezone,
+                'language': user_obj.language,
+                'notification_preferences': user_obj.notification_preferences,
+                'is_verified': user_obj.is_verified,
+                'email_verified_at': user_obj.email_verified_at.isoformat() if user_obj.email_verified_at else None,
+                'last_login_at': user_obj.last_login_at.isoformat() if user_obj.last_login_at else None,
+                'has_qr_code': bool(user_obj.qr_code_token),
+                # Organization-specific data
+                'role': user_membership.role if user_membership else 'USER',
+                'department': user_membership.department if user_membership else None,
+                'title': user_membership.title if user_membership else None,
+                'joined_at': user_membership.joined_at.isoformat() if user_membership and user_membership.joined_at else None,
+            }
+            
+            users_data.append(user_data)
+        
+        return jsonify({
+            'users': users_data,
+            'pagination': {
+                'page': users_pagination.page,
+                'per_page': users_pagination.per_page,
+                'total': users_pagination.total,
+                'pages': users_pagination.pages,
+                'has_next': users_pagination.has_next,
+                'has_prev': users_pagination.has_prev
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error fetching organization users: {str(e)}")
+        return jsonify({'error': 'Failed to fetch users'}), 500
