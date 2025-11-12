@@ -63,6 +63,7 @@ def update_profile():
         updatable_fields = [
             'first_name', 'last_name', 'phone_number', 'bio', 'gender',
             'school_year', 'student_id', 'major', 'gpa', 'graduation_year',
+            'university_name', 'faculty_name',
             'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
             'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
             'linkedin_url', 'github_url', 'personal_website',

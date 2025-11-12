@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Production API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Production API Connectivity Test</h1>
+    <p>Testing connection to: <strong>http://score.al-hanna.com/api</strong></p>
+    
+    <button onclick="testConnection()">Test API Connection</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="testCORS()">Test CORS</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://score.al-hanna.com/api';
+        const results = document.getElementById('results');
+
+        function addResult(message, isSuccess = true) {
+            const div = document.createElement('div');
+            div.className = `result ${isSuccess ? 'success' : 'error'}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            results.appendChild(div);
+        }
+
+        async function testConnection() {
+            try {
+                addResult('Testing basic connectivity...');
+                const response = await fetch(`${API_BASE}/health`, { 
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    addResult(`✅ Basic connectivity successful (${response.status})`);
+                } else {
+                    addResult(`⚠️ Got response but status: ${response.status}`, false);
+                }
+            } catch (error) {
+                addResult(`❌ Connection failed: ${error.message}`, false);
+                addResult('This might be a CORS issue when accessing from browser', false);
+            }
+        }
+
+        async function testLogin() {
+            try {
+                addResult('Testing login endpoint...');
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'bfawzy',
+                        password: 'bfawzybfawzy',
+                        organization_name: 'youth26'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    addResult(`✅ Login successful! Got token: ${data.token.substring(0, 20)}...`);
+                    addResult(`User: ${data.user.first_name} ${data.user.last_name} (${data.user.username})`);
+                } else {
+                    addResult(`❌ Login failed: ${data.message || 'Unknown error'}`, false);
+                }
+            } catch (error) {
+                addResult(`❌ Login request failed: ${error.message}`, false);
+            }
+        }
+
+        async function testCORS() {
+            try {
+                addResult('Testing CORS preflight...');
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+
+                addResult(`CORS preflight response: ${response.status}`);
+                
+                // Check CORS headers
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+
+                addResult(`CORS Headers: ${JSON.stringify(corsHeaders, null, 2)}`);
+                
+            } catch (error) {
+                addResult(`❌ CORS test failed: ${error.message}`, false);
+            }
+        }
+
+        // Auto-run tests on load
+        window.onload = function() {
+            addResult('🚀 Starting API connectivity tests...');
+        };
+    </script>
+</body>
+</html>

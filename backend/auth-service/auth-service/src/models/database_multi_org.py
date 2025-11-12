@@ -56,6 +56,8 @@ class User(db.Model):
     major = db.Column(db.String(100), nullable=True)
     gpa = db.Column(db.Float, nullable=True)
     graduation_year = db.Column(db.Integer, nullable=True)
+    university_name = db.Column(db.String(255), nullable=True)
+    faculty_name = db.Column(db.String(255), nullable=True)
     
     # Contact Information
     address_line1 = db.Column(db.String(255), nullable=True)
@@ -128,6 +130,8 @@ class User(db.Model):
             'major': self.major,
             'gpa': self.gpa,
             'graduation_year': self.graduation_year,
+            'university_name': self.university_name,
+            'faculty_name': self.faculty_name,
             
             # Social Media & Links
             'linkedin_url': self.linkedin_url,

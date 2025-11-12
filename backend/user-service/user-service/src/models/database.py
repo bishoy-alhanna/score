@@ -17,6 +17,8 @@ class User(db.Model):
     first_name = db.Column(db.String(255))
     last_name = db.Column(db.String(255))
     department = db.Column(db.String(255))
+    university_name = db.Column(db.String(255))
+    faculty_name = db.Column(db.String(255))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -35,6 +37,8 @@ class User(db.Model):
             'first_name': self.first_name,
             'last_name': self.last_name,
             'department': self.department,
+            'university_name': self.university_name,
+            'faculty_name': self.faculty_name,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }

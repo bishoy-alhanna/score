@@ -103,6 +103,10 @@ def update_user(user_id):
             user.last_name = data['last_name']
         if 'department' in data:
             user.department = data['department']
+        if 'university_name' in data:
+            user.university_name = data['university_name']
+        if 'faculty_name' in data:
+            user.faculty_name = data['faculty_name']
         
         # Only admins can update role and email
         if current_user.role == 'ORG_ADMIN':

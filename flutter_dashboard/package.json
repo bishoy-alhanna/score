@@ -1,0 +1,14 @@
+{
+  "name": "flutter-proxy",
+  "version": "1.0.0",
+  "description": "CORS proxy for Flutter web app",
+  "main": "proxy-server.js",
+  "dependencies": {
+    "express": "^4.18.0",
+    "http-proxy-middleware": "^2.0.0",
+    "cors": "^2.8.0"
+  },
+  "scripts": {
+    "start": "node proxy-server.js"
+  }
+}

@@ -2731,18 +2731,21 @@ function LeaderboardManagement() {
                           <tr key={user.user_id} className="hover:bg-gray-50">
                             <td className="border border-gray-200 px-4 py-2">
                               <div className="flex items-center gap-2">
-                                {user.profile_picture_url && (
-                                  <img 
-                                    src={user.profile_picture_url} 
-                                    alt="Profile" 
-                                    className="w-8 h-8 rounded-full object-cover"
-                                  />
-                                )}
+                                <img
+                                  src={(() => {
+                                    if (!user.profile_picture_url || user.profile_picture_url.trim() === '') return '/default-profile.png';
+                                    if (user.profile_picture_url.startsWith('http')) return user.profile_picture_url;
+                                    return `https://score.al-hanna.com${user.profile_picture_url}`;
+                                  })()}
+                                  alt="Profile"
+                                  className="w-8 h-8 rounded-full object-cover border border-gray-300 bg-gray-100"
+                                  onError={e => { e.target.onerror = null; e.target.src = '/default-profile.png'; }}
+                                />
                                 <span>
-                                  {user.display_name || 
-                                   `${user.first_name || ''} ${user.last_name || ''}`.trim() || 
-                                   user.username || 
-                                   `User ${user.user_id?.slice(0, 8)}`}
+                                  {user.display_name ||
+                                    `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
+                                    user.username ||
+                                    `User ${user.user_id?.slice(0, 8)}`}
                                 </span>
                               </div>
                             </td>
