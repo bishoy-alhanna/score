@@ -3,11 +3,11 @@ Super Admin - Demo Data Management Routes
 Endpoints for managing demo data (create/delete)
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from functools import wraps
 import jwt
 import os
-from src.models.database_multi_org import db
+import requests
 
 demo_bp = Blueprint('demo', __name__)
 
