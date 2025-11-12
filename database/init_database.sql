@@ -369,3 +369,10 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
 -- - qr_scan_logs
 -- - super_admin_config
 -- ================================================================
+
+-- ================================================================
+-- LOAD DEMO DATA (Optional - can be deleted by super admin)
+-- ================================================================
+\echo 'Loading demo data...'
+\i /database/seed_demo_data.sql
+\echo 'Demo data loaded successfully!'

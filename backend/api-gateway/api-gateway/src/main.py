@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from flask import Flask
 from flask_cors import CORS
 from src.routes.gateway import gateway_bp
+from src.routes.demo_data import demo_bp
 
 app = Flask(__name__)
 CORS(app, origins="*")  # Enable CORS for all origins
@@ -21,6 +22,7 @@ app.config['LEADERBOARD_SERVICE_URL'] = os.environ.get('LEADERBOARD_SERVICE_URL'
 
 # Register blueprints
 app.register_blueprint(gateway_bp, url_prefix='/api')
+app.register_blueprint(demo_bp, url_prefix='/api/super-admin/demo')
 
 @app.route('/health')
 def health_check():
