@@ -210,10 +210,13 @@ CREATE INDEX IF NOT EXISTS idx_group_member_user ON group_members(user_id);
 -- ================================================================
 CREATE TABLE IF NOT EXISTS score_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
+    max_score INTEGER DEFAULT 100,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    created_by UUID REFERENCES users(id),
     is_active BOOLEAN DEFAULT TRUE,
+    is_predefined BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(name, organization_id)
@@ -227,38 +230,48 @@ CREATE INDEX IF NOT EXISTS idx_category_name ON score_categories(name);
 -- ================================================================
 CREATE TABLE IF NOT EXISTS scores (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     category_id UUID REFERENCES score_categories(id) ON DELETE SET NULL,
-    points INTEGER NOT NULL DEFAULT 0,
-    reason TEXT,
-    awarded_by UUID REFERENCES users(id),
-    scored_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    category VARCHAR(255) DEFAULT 'general',  -- Backward compatibility
+    score_value INTEGER NOT NULL DEFAULT 0,
+    description TEXT,
+    assigned_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CHECK ((user_id IS NOT NULL AND group_id IS NULL) OR (user_id IS NULL AND group_id IS NOT NULL))
 );
 
 CREATE INDEX IF NOT EXISTS idx_score_user ON scores(user_id);
+CREATE INDEX IF NOT EXISTS idx_score_group ON scores(group_id);
 CREATE INDEX IF NOT EXISTS idx_score_org ON scores(organization_id);
 CREATE INDEX IF NOT EXISTS idx_score_category ON scores(category_id);
-CREATE INDEX IF NOT EXISTS idx_score_date ON scores(scored_at);
+CREATE INDEX IF NOT EXISTS idx_score_date ON scores(created_at);
 
 -- ================================================================
 -- SCORE AGGREGATES TABLE (for performance)
 -- ================================================================
 CREATE TABLE IF NOT EXISTS score_aggregates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES groups(id) ON DELETE CASCADE,
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    category_id UUID REFERENCES score_categories(id) ON DELETE CASCADE,
-    total_points INTEGER DEFAULT 0,
+    category VARCHAR(255) DEFAULT 'general',
+    total_score INTEGER DEFAULT 0,
+    score_count INTEGER DEFAULT 0,
+    average_score NUMERIC(10, 2) DEFAULT 0.0,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, organization_id, category_id)
+    UNIQUE(user_id, organization_id, category),
+    UNIQUE(group_id, organization_id, category),
+    CHECK ((user_id IS NOT NULL AND group_id IS NULL) OR (user_id IS NULL AND group_id IS NOT NULL))
 );
 
 CREATE INDEX IF NOT EXISTS idx_aggregate_user ON score_aggregates(user_id);
+CREATE INDEX IF NOT EXISTS idx_aggregate_group ON score_aggregates(group_id);
 CREATE INDEX IF NOT EXISTS idx_aggregate_org ON score_aggregates(organization_id);
-CREATE INDEX IF NOT EXISTS idx_aggregate_category ON score_aggregates(category_id);
-CREATE INDEX IF NOT EXISTS idx_aggregate_points ON score_aggregates(total_points DESC);
+CREATE INDEX IF NOT EXISTS idx_aggregate_category ON score_aggregates(category);
+CREATE INDEX IF NOT EXISTS idx_aggregate_points ON score_aggregates(total_score DESC);
 
 -- ================================================================
 -- QR SCAN LOGS TABLE
@@ -293,31 +306,84 @@ CREATE TABLE IF NOT EXISTS super_admin_config (
 CREATE INDEX IF NOT EXISTS idx_super_admin_user ON super_admin_config(user_id);
 
 -- ================================================================
--- INSERT DEFAULT CATEGORIES (Optional - customize as needed)
+-- DEMO DATA SECTION
 -- ================================================================
--- You can add default categories here or let organizations create their own
+
+-- Insert Demo Organizations
+INSERT INTO organizations (id, name, description, is_active) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'Tech University', 'Technology and Engineering University', TRUE),
+    ('22222222-2222-2222-2222-222222222222', 'Business School', 'School of Business and Management', TRUE),
+    ('33333333-3333-3333-3333-333333333333', 'Arts Academy', 'Academy of Arts and Design', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert Demo Users
+-- Password for all users: 'password123' (hashed with bcrypt)
+-- Note: organization membership is set via user_organizations table
+INSERT INTO users (id, username, email, password_hash, first_name, last_name, is_active) VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin', 'admin@score.com', crypt('password123', gen_salt('bf')), 'Admin', 'User', TRUE),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'john.admin', 'john.admin@tech.edu', crypt('password123', gen_salt('bf')), 'John', 'Admin', TRUE),
+    ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'sarah.admin', 'sarah.admin@business.edu', crypt('password123', gen_salt('bf')), 'Sarah', 'Admin', TRUE),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'john.doe', 'john.doe@tech.edu', crypt('password123', gen_salt('bf')), 'John', 'Doe', TRUE),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'jane.smith', 'jane.smith@tech.edu', crypt('password123', gen_salt('bf')), 'Jane', 'Smith', TRUE),
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'bob.wilson', 'bob.wilson@business.edu', crypt('password123', gen_salt('bf')), 'Bob', 'Wilson', TRUE),
+    ('12121212-1212-1212-1212-121212121212', 'alice.brown', 'alice.brown@business.edu', crypt('password123', gen_salt('bf')), 'Alice', 'Brown', TRUE),
+    ('13131313-1313-1313-1313-131313131313', 'charlie.davis', 'charlie.davis@arts.edu', crypt('password123', gen_salt('bf')), 'Charlie', 'Davis', TRUE),
+    ('14141414-1414-1414-1414-141414141414', 'emma.taylor', 'emma.taylor@arts.edu', crypt('password123', gen_salt('bf')), 'Emma', 'Taylor', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert User-Organization relationships with roles
+INSERT INTO user_organizations (user_id, organization_id, role, is_active) VALUES
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'ORG_ADMIN', TRUE),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'ORG_ADMIN', TRUE),
+    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '22222222-2222-2222-2222-222222222222', 'ORG_ADMIN', TRUE),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'USER', TRUE),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111', 'USER', TRUE),
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '22222222-2222-2222-2222-222222222222', 'USER', TRUE),
+    ('12121212-1212-1212-1212-121212121212', '22222222-2222-2222-2222-222222222222', 'USER', TRUE),
+    ('13131313-1313-1313-1313-131313131313', '33333333-3333-3333-3333-333333333333', 'USER', TRUE),
+    ('14141414-1414-1414-1414-141414141414', '33333333-3333-3333-3333-333333333333', 'USER', TRUE)
+ON CONFLICT (user_id, organization_id) DO NOTHING;
+
+-- Insert Score Categories for each organization
+INSERT INTO score_categories (id, name, description, max_score, organization_id, created_by, is_predefined, is_active) VALUES
+    -- Tech University categories
+    ('c1111111-1111-1111-1111-111111111111', 'Attendance', 'Attendance points', 100, '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', TRUE, TRUE),
+    ('c1111111-1111-1111-1111-111111111112', 'Participation', 'Class participation points', 100, '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', TRUE, TRUE),
+    ('c1111111-1111-1111-1111-111111111113', 'Leadership', 'Leadership activities points', 100, '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', TRUE, TRUE),
+    ('c1111111-1111-1111-1111-111111111114', 'Academic Excellence', 'Academic achievement points', 100, '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', TRUE, TRUE),
+    ('c1111111-1111-1111-1111-111111111115', 'Community Service', 'Community service points', 100, '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', TRUE, TRUE),
+    -- Business School categories
+    ('c2222222-2222-2222-2222-222222222221', 'Attendance', 'Attendance points', 100, '22222222-2222-2222-2222-222222222222', 'cccccccc-cccc-cccc-cccc-cccccccccccc', TRUE, TRUE),
+    ('c2222222-2222-2222-2222-222222222222', 'Participation', 'Class participation points', 100, '22222222-2222-2222-2222-222222222222', 'cccccccc-cccc-cccc-cccc-cccccccccccc', TRUE, TRUE),
+    ('c2222222-2222-2222-2222-222222222223', 'Leadership', 'Leadership activities points', 100, '22222222-2222-2222-2222-222222222222', 'cccccccc-cccc-cccc-cccc-cccccccccccc', TRUE, TRUE),
+    -- Arts Academy categories
+    ('c3333333-3333-3333-3333-333333333331', 'Attendance', 'Attendance points', 100, '33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', TRUE, TRUE),
+    ('c3333333-3333-3333-3333-333333333332', 'Creative Works', 'Points for creative projects', 100, '33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', TRUE, TRUE)
+ON CONFLICT (name, organization_id) DO NOTHING;
+
+-- Insert Sample Scores for demo users
+INSERT INTO scores (user_id, organization_id, category_id, category, score_value, description, assigned_by) VALUES
+    -- Tech University scores
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111111', 'Attendance', 85, 'Great attendance record', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111112', 'Participation', 90, 'Excellent class participation', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111111', 'Attendance', 95, 'Perfect attendance', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '11111111-1111-1111-1111-111111111111', 'c1111111-1111-1111-1111-111111111114', 'Academic Excellence', 88, 'Outstanding academic performance', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+    -- Business School scores
+    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '22222222-2222-2222-2222-222222222222', 'c2222222-2222-2222-2222-222222222221', 'Attendance', 80, 'Good attendance', 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
+    ('12121212-1212-1212-1212-121212121212', '22222222-2222-2222-2222-222222222222', 'c2222222-2222-2222-2222-222222222223', 'Leadership', 92, 'Great leadership in team projects', 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
+    -- Arts Academy scores
+    ('13131313-1313-1313-1313-131313131313', '33333333-3333-3333-3333-333333333333', 'c3333333-3333-3333-3333-333333333332', 'Creative Works', 96, 'Exceptional creative project', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
+    ('14141414-1414-1414-1414-141414141414', '33333333-3333-3333-3333-333333333333', 'c3333333-3333-3333-3333-333333333331', 'Attendance', 87, 'Consistent attendance', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+ON CONFLICT DO NOTHING;
 
 -- ================================================================
--- CREATE DEFAULT SUPER ADMIN USER (Optional)
--- Password: admin123 (CHANGE THIS IN PRODUCTION!)
+-- CREATE DEFAULT SUPER ADMIN USER
+-- Password: password123 (CHANGE THIS IN PRODUCTION!)
 -- ================================================================
--- Uncomment and customize if you want a default admin user
-/*
-INSERT INTO users (username, email, password_hash, first_name, last_name, is_active)
-VALUES (
-    'superadmin',
-    'admin@example.com',
-    crypt('admin123', gen_salt('bf')),
-    'Super',
-    'Admin',
-    TRUE
-) ON CONFLICT (username) DO NOTHING;
-
--- Make the user a super admin
-INSERT INTO super_admin_config (user_id, is_super_admin)
-SELECT id, TRUE FROM users WHERE username = 'superadmin'
+-- Make admin user a super admin
+INSERT INTO super_admin_config (user_id, is_super_admin, granted_by)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', TRUE, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
 ON CONFLICT (user_id) DO NOTHING;
-*/
 
 -- ================================================================
 -- TRIGGERS FOR UPDATED_AT TIMESTAMPS
@@ -336,6 +402,7 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECU
 CREATE TRIGGER update_user_organizations_updated_at BEFORE UPDATE ON user_organizations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_groups_updated_at BEFORE UPDATE ON groups FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_score_categories_updated_at BEFORE UPDATE ON score_categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_scores_updated_at BEFORE UPDATE ON scores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ================================================================
 -- GRANT PERMISSIONS (Adjust as needed for your setup)
