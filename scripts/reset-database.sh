@@ -87,26 +87,30 @@ if [ -f "$BACKUP_FILE" ]; then
 fi
 
 echo ""
-echo "Terminating all connections to database..."
-docker exec $DB_CONTAINER psql -U $DB_USER -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" 2>/dev/null || true
+echo "Step 1/4: Terminating all connections to database..."
+docker exec $DB_CONTAINER psql -U $DB_USER -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" 2>/dev/null || true
 
-echo "Dropping existing database..."
-# Drop database
-docker exec $DB_CONTAINER psql -U $DB_USER -c "DROP DATABASE IF EXISTS ${DB_NAME};" 2>/dev/null || true
+echo "Step 2/4: Dropping existing database..."
+docker exec $DB_CONTAINER psql -U $DB_USER -d postgres -c "DROP DATABASE IF EXISTS ${DB_NAME};" 
 
-# Create database
-echo "Creating fresh database..."
-docker exec $DB_CONTAINER psql -U $DB_USER -c "CREATE DATABASE ${DB_NAME};"
+if [ $? -eq 0 ]; then
+    echo "✅ Database dropped"
+else
+    echo "❌ Error dropping database"
+    exit 1
+fi
 
-if [ $? -ne 0 ]; then
+echo "Step 3/4: Creating fresh database..."
+docker exec $DB_CONTAINER psql -U $DB_USER -d postgres -c "CREATE DATABASE ${DB_NAME};"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Database created"
+else
     echo "❌ Error creating database"
     exit 1
 fi
 
-echo "✅ Database recreated"
-
-echo ""
-echo "Loading schema and demo data..."
+echo "Step 4/4: Loading schema and demo data..."
 
 # Execute schema file
 docker exec -i $DB_CONTAINER psql -U $DB_USER -d $DB_NAME < $SCHEMA_FILE
