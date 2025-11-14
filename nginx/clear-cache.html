@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clearing Cache...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 3rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+        p {
+            color: #666;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+            display: none;
+        }
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.3s;
+        }
+        .button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <h1>Clearing Cache...</h1>
+        <p id="message">Please wait while we clear your browser cache and fix the loading issue.</p>
+        <p class="success" id="success">✅ Cache cleared successfully!</p>
+        <button class="button" id="redirectBtn" style="display: none;" onclick="redirect()">Continue to Login</button>
+    </div>
+
+    <script>
+        // Automatic cache clear and redirect
+        function clearCacheAndRedirect() {
+            try {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                // Update UI
+                document.querySelector('.spinner').style.display = 'none';
+                document.getElementById('message').style.display = 'none';
+                document.getElementById('success').style.display = 'block';
+                document.getElementById('redirectBtn').style.display = 'inline-block';
+                
+                // Auto redirect after 2 seconds
+                setTimeout(() => {
+                    redirect();
+                }, 2000);
+                
+            } catch (error) {
+                console.error('Error clearing cache:', error);
+                document.getElementById('message').textContent = 'Error clearing cache. Please try manually clearing your browser cache.';
+            }
+        }
+
+        function redirect() {
+            // Check if we're on admin or user site
+            const isAdmin = window.location.pathname.includes('/admin');
+            
+            if (isAdmin) {
+                window.location.href = '/admin/';
+            } else {
+                window.location.href = '/';
+            }
+        }
+
+        // Run immediately
+        clearCacheAndRedirect();
+    </script>
+</body>
+</html>

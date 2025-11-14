@@ -128,7 +128,7 @@ class MyHomePage extends StatelessWidget {  runApp(const UserDashboardApp());
 
     return MultiProvider(
 
-  GoRouter Function(AuthProvider auth) _createRouter {
+  GoRouter Function(AuthProvider auth) createRouter {
 
     return GoRouter(      providers: [import 'providers/auth_provider.dart';import 'providers/auth_provider.dart';
 
