@@ -33,7 +33,7 @@ set -e
 
 echo ""
 echo "📂 Navigating to project directory..."
-cd /root/score
+cd score
 
 echo ""
 echo "🔄 Pulling latest changes from git..."

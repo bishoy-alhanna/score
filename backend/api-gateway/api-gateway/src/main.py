@@ -44,5 +44,7 @@ def index():
     }
 
 if __name__ == '__main__':
+    # For local development only
+    # In production, use Gunicorn: gunicorn -w 4 -b 0.0.0.0:5000 src.main:app
     app.run(host='0.0.0.0', port=5000, debug=True)
 
