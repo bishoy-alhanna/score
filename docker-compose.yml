@@ -9,8 +9,11 @@ services:
     container_name: saas_nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - profile_pictures:/var/www/uploads/profile_pictures
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /etc/ssl/certs:/etc/ssl/certs:ro
     depends_on:
       - api-gateway
       - admin-dashboard
