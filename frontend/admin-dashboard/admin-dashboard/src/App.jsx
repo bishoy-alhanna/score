@@ -64,7 +64,16 @@ function AuthProvider({ children }) {
 
   const verifyToken = async (token) => {
     try {
-      const response = await api.post('/auth/verify')
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout')), 5000)
+      )
+      
+      const response = await Promise.race([
+        api.post('/auth/verify'),
+        timeoutPromise
+      ])
+      
       setUser(response.data.user)
       if (response.data.current_organization_id) {
         const org = response.data.user.organizations?.find(
@@ -73,6 +82,7 @@ function AuthProvider({ children }) {
         setCurrentOrganization(org)
       }
     } catch (error) {
+      console.log('Token verification failed:', error.message)
       localStorage.removeItem('authToken')
     } finally {
       setLoading(false)
