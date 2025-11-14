@@ -27,7 +27,7 @@ fi
 
 echo ""
 echo "📡 Connecting to production server..."
-ssh root@escore.al-hanna.com << 'ENDSSH'
+ssh bihannaroot@escore.al-hanna.com << 'ENDSSH'
 
 set -e
 

@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 DOMAIN="escore.al-hanna.com"
-EMAIL="your-email@example.com"  # Update this!
+EMAIL="bishoy@al-hanna.com"  # Update this!
 
 echo "========================================="
 echo "SSL Certificate Setup for Score Platform"
