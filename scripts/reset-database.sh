@@ -14,7 +14,7 @@ echo ""
 DB_CONTAINER="saas_postgres"
 DB_NAME="saas_platform"
 DB_USER="postgres"
-SCHEMA_FILE="database/init_schema_with_demo.sql"
+SCHEMA_FILE="database/init_database.sql"
 
 # Check if schema file exists
 if [ ! -f "$SCHEMA_FILE" ]; then
@@ -87,12 +87,15 @@ if [ -f "$BACKUP_FILE" ]; then
 fi
 
 echo ""
-echo "Dropping and recreating database..."
+echo "Terminating all connections to database..."
+docker exec $DB_CONTAINER psql -U $DB_USER -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB_NAME' AND pid <> pg_backend_pid();" 2>/dev/null || true
 
+echo "Dropping existing database..."
 # Drop database
 docker exec $DB_CONTAINER psql -U $DB_USER -c "DROP DATABASE IF EXISTS ${DB_NAME};" 2>/dev/null || true
 
 # Create database
+echo "Creating fresh database..."
 docker exec $DB_CONTAINER psql -U $DB_USER -c "CREATE DATABASE ${DB_NAME};"
 
 if [ $? -ne 0 ]; then
