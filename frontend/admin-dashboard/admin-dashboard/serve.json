@@ -1,0 +1,10 @@
+{
+  "public": "dist/admin",
+  "rewrites": [
+    {
+      "source": "**",
+      "destination": "/index.html"
+    }
+  ],
+  "directoryListing": false
+}
