@@ -1,0 +1,12 @@
+FROM nginx:alpine
+
+# Copy local development config (no SSL required)
+COPY nginx.local.conf /etc/nginx/nginx.conf
+
+# Copy HTML utilities
+COPY clear-cache.html /usr/share/nginx/html/clear-cache.html
+COPY debug.html /usr/share/nginx/html/debug.html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

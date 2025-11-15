@@ -1,0 +1,226 @@
+version: '3.8'
+
+# LOCAL DEVELOPMENT CONFIGURATION
+# Use this for local testing without SSL certificates
+# Run with: docker-compose -f docker-compose.dev.yml up
+
+services:
+  # Nginx Reverse Proxy (Local - No SSL)
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.dev
+    container_name: score_nginx_dev
+    ports:
+      - "80:80"
+    volumes:
+      - profile_pictures:/var/www/uploads/profile_pictures
+    depends_on:
+      - api-gateway
+      - admin-dashboard
+      - user-dashboard
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: score_postgres_dev
+    environment:
+      POSTGRES_DB: saas_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./database/init_database.sql:/docker-entrypoint-initdb.d/init_database.sql
+    networks:
+      - score_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: score_redis_dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_dev:/data
+    networks:
+      - score_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./backend/api-gateway/api-gateway
+      dockerfile: Dockerfile
+    container_name: score_api_gateway_dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=dev-jwt-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - SECRET_KEY=dev-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - AUTH_SERVICE_URL=http://auth-service:5000
+      - USER_SERVICE_URL=http://user-service:5000
+      - GROUP_SERVICE_URL=http://group-service:5000
+      - SCORING_SERVICE_URL=http://scoring-service:5000
+      - LEADERBOARD_SERVICE_URL=http://leaderboard-service:5000
+      - FLASK_ENV=development
+    ports:
+      - "5000:5000"  # Expose for direct access during dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - score_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./backend/auth-service/auth-service
+      dockerfile: Dockerfile
+    container_name: score_auth_service_dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=dev-jwt-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - SECRET_KEY=dev-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - FLASK_ENV=development
+    volumes:
+      - profile_pictures:/app/uploads/profile_pictures
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # User Service
+  user-service:
+    build:
+      context: ./backend/user-service/user-service
+      dockerfile: Dockerfile
+    container_name: score_user_service_dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=dev-jwt-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - SECRET_KEY=dev-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - FLASK_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # Group Service
+  group-service:
+    build:
+      context: ./backend/group-service/group-service
+      dockerfile: Dockerfile
+    container_name: score_group_service_dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=dev-jwt-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - SECRET_KEY=dev-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - FLASK_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # Scoring Service
+  scoring-service:
+    build:
+      context: ./backend/scoring-service/scoring-service
+      dockerfile: Dockerfile
+    container_name: score_scoring_service_dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=dev-jwt-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - SECRET_KEY=dev-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - FLASK_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # Leaderboard Service
+  leaderboard-service:
+    build:
+      context: ./backend/leaderboard-service/leaderboard-service
+      dockerfile: Dockerfile
+    container_name: score_leaderboard_service_dev
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/saas_platform
+      - JWT_SECRET_KEY=dev-jwt-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - SECRET_KEY=dev-secret-key-DO-NOT-USE-IN-PRODUCTION
+      - FLASK_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # Admin Dashboard (Frontend)
+  admin-dashboard:
+    build:
+      context: ./frontend/admin-dashboard/admin-dashboard
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=/api
+    container_name: score_admin_dashboard_dev
+    environment:
+      - VITE_API_BASE_URL=/api
+    networks:
+      - score_network
+    restart: unless-stopped
+
+  # User Dashboard (Frontend)
+  user-dashboard:
+    build:
+      context: ./frontend/user-dashboard/user-dashboard
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=/api
+    container_name: score_user_dashboard_dev
+    environment:
+      - VITE_API_BASE_URL=/api
+    networks:
+      - score_network
+    restart: unless-stopped
+
+networks:
+  score_network:
+    driver: bridge
+    name: score_network_dev
+
+volumes:
+  postgres_data_dev:
+    name: score_postgres_data_dev
+  redis_data_dev:
+    name: score_redis_data_dev
+  profile_pictures:
+    name: score_profile_pictures_dev
