@@ -3,8 +3,9 @@ FROM nginx:alpine
 # Copy production config with SSL
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy cache clearing page
+# Copy HTML utilities
 COPY clear-cache.html /usr/share/nginx/html/clear-cache.html
+COPY debug.html /usr/share/nginx/html/debug.html
 
 EXPOSE 80 443
 
