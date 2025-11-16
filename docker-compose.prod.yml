@@ -252,8 +252,9 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
   redis_data:
-    driver: local    driver: local
+    driver: local
   nginx_logs:
     driver: local
 
