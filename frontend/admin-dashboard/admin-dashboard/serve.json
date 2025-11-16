@@ -1,5 +1,5 @@
 {
-  "public": "dist/admin",
+  "public": "dist",
   "rewrites": [
     {
       "source": "**",

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .log { margin: 10px 0; padding: 10px; background: #000; border-left: 3px solid #0f0; }
+        .error { border-color: #f00; color: #f00; }
+        .success { border-color: #0f0; }
+        button { padding: 10px 20px; margin: 5px; background: #0f0; color: #000; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Admin Dashboard API Tester</h1>
+    <div id="status"></div>
+    
+    <button onclick="testOrganizations()">Test /api/auth/organizations</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="checkLocalStorage()">Check LocalStorage</button>
+    <button onclick="clearAll()">Clear All & Reload</button>
+
+    <script>
+        const API_BASE = '/api';
+        const log = (msg, isError = false) => {
+            const div = document.createElement('div');
+            div.className = 'log ' + (isError ? 'error' : 'success');
+            div.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+            document.getElementById('status').prepend(div);
+        };
+
+        async function testOrganizations() {
+            try {
+                log('Fetching organizations...');
+                const response = await fetch(API_BASE + '/auth/organizations');
+                const data = await response.json();
+                log('Organizations: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('Error: ' + error.message, true);
+            }
+        }
+
+        async function testLogin() {
+            try {
+                log('Attempting login...');
+                const response = await fetch(API_BASE + '/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        organization_name: 'Demo Org',
+                        username: 'admin',
+                        password: 'password123'
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log('Login successful!');
+                    log('Token: ' + data.token.substring(0, 20) + '...');
+                    log('User: ' + JSON.stringify(data.user, null, 2));
+                    localStorage.setItem('authToken', data.token);
+                } else {
+                    log('Login failed: ' + JSON.stringify(data), true);
+                }
+            } catch (error) {
+                log('Login error: ' + error.message, true);
+            }
+        }
+
+        function checkLocalStorage() {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                log('Token found: ' + token.substring(0, 50) + '...');
+            } else {
+                log('No token in localStorage', true);
+            }
+        }
+
+        function clearAll() {
+            localStorage.clear();
+            log('Cleared localStorage, reloading...');
+            setTimeout(() => location.reload(), 1000);
+        }
+
+        // Auto-run on load
+        window.onload = () => {
+            log('Page loaded, checking status...');
+            checkLocalStorage();
+            testOrganizations();
+        };
+    </script>
+</body>
+</html>

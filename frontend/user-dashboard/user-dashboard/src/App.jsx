@@ -52,8 +52,18 @@ function AuthProvider({ children }) {
     if (token) {
       verifyToken(token)
     } else {
+      // No token - show login immediately
+      console.log('No token found - showing login page')
       setLoading(false)
     }
+    
+    // Failsafe: force show login after 2 seconds regardless
+    const failsafe = setTimeout(() => {
+      console.log('Failsafe timeout - forcing login page to show')
+      setLoading(false)
+    }, 2000)
+    
+    return () => clearTimeout(failsafe)
   }, [])
 
   const verifyToken = async (token) => {

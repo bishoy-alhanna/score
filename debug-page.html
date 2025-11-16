@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Page</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #00ff00;
+        }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #00ff00; }
+        .pass { background: #003300; }
+        .fail { background: #330000; border-color: #ff0000; color: #ff0000; }
+        button { margin: 10px; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <h1>Dashboard Debug Console</h1>
+    <div id="results"></div>
+    
+    <h2>Manual Tests</h2>
+    <button onclick="testAPI()">Test API Connectivity</button>
+    <button onclick="testLocalStorage()">Test LocalStorage</button>
+    <button onclick="testFetch()">Test Fetch API</button>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        function log(message, isError = false) {
+            const div = document.createElement('div');
+            div.className = `test ${isError ? 'fail' : 'pass'}`;
+            div.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+        
+        // Auto-run diagnostics
+        (async function() {
+            log('=== STARTING DIAGNOSTICS ===');
+            
+            // Test 1: Basic JavaScript
+            log('✓ JavaScript is executing');
+            
+            // Test 2: Check if we can access window
+            log(`✓ Window object available: ${typeof window}`);
+            
+            // Test 3: Check localStorage
+            try {
+                localStorage.setItem('test', 'value');
+                const value = localStorage.getItem('test');
+                localStorage.removeItem('test');
+                log(`✓ LocalStorage works: ${value === 'value'}`);
+            } catch (e) {
+                log(`✗ LocalStorage error: ${e.message}`, true);
+            }
+            
+            // Test 4: Check fetch API
+            log(`✓ Fetch API available: ${typeof fetch}`);
+            
+            // Test 5: Try to access the API
+            try {
+                log('→ Testing API health endpoint...');
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                log(`✓ API Health: ${JSON.stringify(data)}`);
+            } catch (e) {
+                log(`✗ API Health failed: ${e.message}`, true);
+            }
+            
+            // Test 6: Check current page location
+            log(`→ Current URL: ${window.location.href}`);
+            log(`→ Current hostname: ${window.location.hostname}`);
+            log(`→ Current protocol: ${window.location.protocol}`);
+            
+            // Test 7: Check if auth token exists
+            const token = localStorage.getItem('authToken');
+            log(`→ Auth token exists: ${!!token}`);
+            if (token) {
+                log(`→ Token length: ${token.length} characters`);
+            }
+            
+            log('=== DIAGNOSTICS COMPLETE ===');
+        })();
+        
+        async function testAPI() {
+            log('→ Manual API test started...');
+            try {
+                const response = await fetch('/api/auth/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const data = await response.json();
+                log(`→ API Response (${response.status}): ${JSON.stringify(data)}`);
+            } catch (e) {
+                log(`✗ API Test failed: ${e.message}`, true);
+            }
+        }
+        
+        function testLocalStorage() {
+            log('→ LocalStorage contents:');
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                log(`  ${key}: ${value.substring(0, 50)}...`);
+            }
+        }
+        
+        async function testFetch() {
+            log('→ Testing fetch to login endpoint...');
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'password123'
+                    })
+                });
+                const data = await response.json();
+                log(`→ Login test (${response.status}): ${data.message || data.error}`);
+                if (data.token) {
+                    log(`✓ Received auth token (${data.token.length} chars)`);
+                }
+            } catch (e) {
+                log(`✗ Login test failed: ${e.message}`, true);
+            }
+        }
+    </script>
+</body>
+</html>

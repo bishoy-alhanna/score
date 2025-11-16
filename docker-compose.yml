@@ -34,7 +34,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/schema_multi_org.sql:/docker-entrypoint-initdb.d/schema_multi_org.sql
+      - ./database/init_database.sql:/docker-entrypoint-initdb.d/init_database.sql
+      - ./database/seed_demo_data.sql:/database/seed_demo_data.sql
     networks:
       - saas_network
     healthcheck:

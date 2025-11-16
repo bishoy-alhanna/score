@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    <div id="status">Testing...</div>
+    <div id="results"></div>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        
+        async function testAPI() {
+            try {
+                statusDiv.innerHTML = 'Testing API connection...';
+                
+                // Test 1: Health endpoint
+                const healthResponse = await fetch('/api/health');
+                const healthData = await healthResponse.json();
+                resultsDiv.innerHTML += `<p>✅ Health check: ${JSON.stringify(healthData)}</p>`;
+                
+                // Test 2: Verify endpoint (should fail without token)
+                try {
+                    const verifyResponse = await fetch('/api/auth/verify', {
+                        method: 'POST'
+                    });
+                    const verifyData = await verifyResponse.json();
+                    resultsDiv.innerHTML += `<p>⚠️ Verify endpoint: ${JSON.stringify(verifyData)}</p>`;
+                } catch (e) {
+                    resultsDiv.innerHTML += `<p>❌ Verify failed: ${e.message}</p>`;
+                }
+                
+                statusDiv.innerHTML = 'Tests complete!';
+                statusDiv.style.color = 'green';
+            } catch (error) {
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                statusDiv.style.color = 'red';
+                resultsDiv.innerHTML += `<p>❌ ${error.message}</p>`;
+                console.error('API test error:', error);
+            }
+        }
+        
+        testAPI();
+    </script>
+</body>
+</html>

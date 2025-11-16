@@ -19,12 +19,6 @@ COPY . .
 # Build app
 RUN pnpm run build
 
-# Create /admin directory structure for serving
-# Move dist contents to dist/admin so serve can serve from root
-RUN mkdir -p /app/dist_temp && \
-    mv /app/dist /app/dist_temp/admin && \
-    mv /app/dist_temp /app/dist
-
 # Copy serve configuration
 COPY serve.json /app/
 
@@ -41,7 +35,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://0.0.0.0:3000/admin/ || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://0.0.0.0:3000/ || exit 1
 
 # Start server with configuration file
 CMD ["serve", "-c", "serve.json", "-l", "tcp://0.0.0.0:3000"]

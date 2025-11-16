@@ -1,0 +1,190 @@
+🔧 Deploying Production Fixes...
+=================================
+📍 Working directory: /Users/bhanna/Projects/Score/score
+
+Step 1: Stopping all containers...
+ Container saas_nginx  Stopping
+ Container saas_nginx  Stopped
+ Container saas_nginx  Removing
+ Container saas_nginx  Removed
+ Container saas_user_dashboard  Stopping
+ Container saas_admin_dashboard  Stopping
+ Container saas_user_dashboard  Stopped
+ Container saas_user_dashboard  Removing
+ Container saas_admin_dashboard  Stopped
+ Container saas_admin_dashboard  Removing
+ Container saas_user_dashboard  Removed
+ Container saas_admin_dashboard  Removed
+ Container saas_api_gateway  Stopping
+ Container saas_api_gateway  Stopped
+ Container saas_api_gateway  Removing
+ Container saas_api_gateway  Removed
+ Container saas_auth_service  Stopping
+ Container saas_scoring_service  Stopping
+ Container saas_leaderboard_service  Stopping
+ Container saas_scoring_service  Stopped
+ Container saas_scoring_service  Removing
+ Container saas_leaderboard_service  Stopped
+ Container saas_leaderboard_service  Removing
+ Container saas_auth_service  Stopped
+ Container saas_auth_service  Removing
+ Container saas_scoring_service  Removed
+ Container saas_auth_service  Removed
+ Container saas_leaderboard_service  Removed
+ Container saas_group_service  Stopping
+ Container saas_redis  Stopping
+ Container saas_user_service  Stopping
+ Container saas_redis  Stopped
+ Container saas_redis  Removing
+ Container saas_redis  Removed
+ Container saas_user_service  Stopped
+ Container saas_user_service  Removing
+ Container saas_group_service  Stopped
+ Container saas_group_service  Removing
+ Container saas_user_service  Removed
+ Container saas_group_service  Removed
+ Container saas_postgres  Stopping
+ Container saas_postgres  Stopped
+ Container saas_postgres  Removing
+ Container saas_postgres  Removed
+ Network score_saas_network  Removing
+ Network score_saas_network  Removed
+
+Step 2: Building backend services with Gunicorn and wget...
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.90kB done
+#1 DONE 0.0s
+
+#2 [leaderboard-service internal] load build definition from Dockerfile
+#2 transferring dockerfile: 880B done
+#2 DONE 0.0s
+
+#3 [auth-service internal] load build definition from Dockerfile
+#3 transferring dockerfile: 956B done
+#3 DONE 0.0s
+
+#4 [group-service internal] load build definition from Dockerfile
+#4 transferring dockerfile: 880B done
+#4 DONE 0.0s
+
+#5 [user-service internal] load build definition from Dockerfile
+#5 transferring dockerfile: 880B done
+#5 DONE 0.0s
+
+#6 [scoring-service internal] load build definition from Dockerfile
+#6 transferring dockerfile: 880B done
+#6 DONE 0.0s
+
+#7 [scoring-service internal] load metadata for docker.io/library/python:3.11-slim
+#7 DONE 1.2s
+
+#8 [scoring-service internal] load .dockerignore
+#8 transferring context: 2B done
+#8 DONE 0.0s
+
+#9 [auth-service internal] load .dockerignore
+#9 transferring context: 2B done
+#9 DONE 0.0s
+
+#10 [group-service internal] load .dockerignore
+#10 transferring context: 2B done
+#10 DONE 0.0s
+
+#11 [leaderboard-service internal] load .dockerignore
+#11 transferring context: 2B done
+#11 DONE 0.0s
+
+#12 [user-service internal] load .dockerignore
+#12 transferring context: 2B done
+#12 DONE 0.0s
+
+#13 [user-service 1/7] FROM docker.io/library/python:3.11-slim@sha256:e4676722fba839e2e5cdb844a52262b43e90e56dbd55b7ad953ee3615ad7534f
+#13 resolve docker.io/library/python:3.11-slim@sha256:e4676722fba839e2e5cdb844a52262b43e90e56dbd55b7ad953ee3615ad7534f 0.0s done
+#13 DONE 0.0s
+
+#14 [user-service 2/7] WORKDIR /app
+#14 CACHED
+
+#15 [user-service 3/7] RUN apt-get update && apt-get install -y     gcc     wget     && rm -rf /var/lib/apt/lists/*
+#15 ...
+
+#16 [scoring-service internal] load build context
+#16 transferring context: 289.29kB 0.4s done
+#16 DONE 0.4s
+
+#17 [user-service internal] load build context
+#17 transferring context: 289.29kB 0.4s done
+#17 DONE 0.5s
+
+#18 [auth-service internal] load build context
+#18 transferring context: 290.05kB 0.4s done
+#18 DONE 0.5s
+
+#19 [leaderboard-service internal] load build context
+#19 transferring context: 305.02kB 0.4s done
+#19 DONE 0.5s
+
+#20 [group-service internal] load build context
+#20 transferring context: 289.29kB 0.5s done
+#20 DONE 0.5s
+
+#15 [user-service 3/7] RUN apt-get update && apt-get install -y     gcc     wget     && rm -rf /var/lib/apt/lists/*
+#15 0.809 Get:1 http://deb.debian.org/debian trixie InRelease [140 kB]
+#15 1.627 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+#15 1.811 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+#15 1.905 Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9670 kB]
+#15 6.617 Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [5412 B]
+#15 6.686 Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [71.4 kB]
+#15 7.566 Fetched 9978 kB in 7s (1432 kB/s)
+#15 7.566 Reading package lists...
+#15 8.542 Reading package lists...
+#15 9.278 Building dependency tree...
+#15 9.506 Reading state information...
+#15 9.932 The following additional packages will be installed:
+#15 9.932   binutils binutils-common binutils-x86-64-linux-gnu cpp cpp-14
+#15 9.932   cpp-14-x86-64-linux-gnu cpp-x86-64-linux-gnu gcc-14 gcc-14-x86-64-linux-gnu
+#15 9.932   gcc-x86-64-linux-gnu libasan8 libatomic1 libbinutils libc-dev-bin libc6-dev
+#15 9.932   libcc1-0 libcrypt-dev libctf-nobfd0 libctf0 libgcc-14-dev libgnutls30t64
+#15 9.932   libgomp1 libgprofng0 libhwasan0 libidn2-0 libisl23 libitm1 libjansson4
+#15 9.934   liblsan0 libmpc3 libmpfr6 libp11-kit0 libpsl5t64 libquadmath0 libsframe1
+#15 9.934   libtasn1-6 libtsan2 libubsan1 libunistring5 linux-libc-dev manpages
+#15 9.935   manpages-dev publicsuffix rpcsvc-proto
+#15 9.939 Suggested packages:
+#15 9.939   binutils-doc gprofng-gui binutils-gold cpp-doc gcc-14-locales cpp-14-doc
+#15 9.939   gcc-multilib make autoconf automake libtool flex bison gdb gcc-doc
+#15 9.939   gcc-14-multilib gcc-14-doc gdb-x86-64-linux-gnu libc-devtools glibc-doc
+#15 9.939   gnutls-bin man-browser
+#15 10.22 The following NEW packages will be installed:
+#15 10.22   binutils binutils-common binutils-x86-64-linux-gnu cpp cpp-14
+#15 10.22   cpp-14-x86-64-linux-gnu cpp-x86-64-linux-gnu gcc gcc-14
+#15 10.22   gcc-14-x86-64-linux-gnu gcc-x86-64-linux-gnu libasan8 libatomic1 libbinutils
+#15 10.22   libc-dev-bin libc6-dev libcc1-0 libcrypt-dev libctf-nobfd0 libctf0
+#15 10.22   libgcc-14-dev libgnutls30t64 libgomp1 libgprofng0 libhwasan0 libidn2-0
+#15 10.22   libisl23 libitm1 libjansson4 liblsan0 libmpc3 libmpfr6 libp11-kit0
+#15 10.22   libpsl5t64 libquadmath0 libsframe1 libtasn1-6 libtsan2 libubsan1
+#15 10.22   libunistring5 linux-libc-dev manpages manpages-dev publicsuffix rpcsvc-proto
+#15 10.22   wget
+#15 10.41 0 upgraded, 46 newly installed, 0 to remove and 6 not upgraded.
+#15 10.41 Need to get 64.2 MB of archives.
+#15 10.41 After this operation, 235 MB of additional disk space will be used.
+#15 10.41 Get:1 http://deb.debian.org/debian trixie/main amd64 manpages all 6.9.1-1 [1393 kB]
+#15 11.20 Get:2 http://deb.debian.org/debian trixie/main amd64 libunistring5 amd64 1.3-2 [477 kB]
+#15 11.37 Get:3 http://deb.debian.org/debian trixie/main amd64 libidn2-0 amd64 2.3.8-2 [109 kB]
+#15 11.41 Get:4 http://deb.debian.org/debian trixie/main amd64 libp11-kit0 amd64 0.25.5-3 [425 kB]
+#15 11.56 Get:5 http://deb.debian.org/debian trixie/main amd64 libtasn1-6 amd64 4.20.0-2 [49.9 kB]
+#15 11.58 Get:6 http://deb.debian.org/debian trixie/main amd64 libgnutls30t64 amd64 3.8.9-3 [1465 kB]
+#15 12.17 Get:7 http://deb.debian.org/debian trixie/main amd64 libpsl5t64 amd64 0.21.2-1.1+b1 [57.2 kB]
+#15 12.19 Get:8 http://deb.debian.org/debian trixie/main amd64 wget amd64 1.25.0-2 [984 kB]
+#15 12.54 Get:9 http://deb.debian.org/debian trixie/main amd64 libsframe1 amd64 2.44-3 [78.4 kB]
+#15 12.56 Get:10 http://deb.debian.org/debian trixie/main amd64 binutils-common amd64 2.44-3 [2509 kB]
+#15 17.45 Get:11 http://deb.debian.org/debian trixie/main amd64 libbinutils amd64 2.44-3 [534 kB]
+#15 18.36 Get:12 http://deb.debian.org/debian trixie/main amd64 libgprofng0 amd64 2.44-3 [808 kB]
+#15 19.72 Get:13 http://deb.debian.org/debian trixie/main amd64 libctf-nobfd0 amd64 2.44-3 [156 kB]
+#15 19.92 Get:14 http://deb.debian.org/debian trixie/main amd64 libctf0 amd64 2.44-3 [88.6 kB]
+#15 20.04 Get:15 http://deb.debian.org/debian trixie/main amd64 libjansson4 amd64 2.14-2+b3 [39.8 kB]
+#15 20.10 Get:16 http://deb.debian.org/debian trixie/main amd64 binutils-x86-64-linux-gnu amd64 2.44-3 [1014 kB]
+#15 21.38 Get:17 http://deb.debian.org/debian trixie/main amd64 binutils amd64 2.44-3 [265 kB]
+#15 21.66 Get:18 http://deb.debian.org/debian trixie/main amd64 libisl23 amd64 0.27-1 [659 kB]
+#15 22.32 Get:19 http://deb.debian.org/debian trixie/main amd64 libmpfr6 amd64 4.2.2-1 [729 kB]
+#15 23.05 Get:20 http://deb.debian.org/debian trixie/main amd64 libmpc3 amd64 1.3.1-1+b3 [52.2 kB]
+#15 23.14 Get:21 http://deb.debian.org/debian trixie/main amd64 cpp-14-x86-64-linux-gnu amd64 14.2.0-19 [11.0 MB]
