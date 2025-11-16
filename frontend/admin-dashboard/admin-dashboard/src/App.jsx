@@ -469,7 +469,7 @@ function App() {
     <ErrorBoundary>
       <TranslationWrapper>
         <AuthProvider>
-          <Router basename="/admin">
+          <Router basename="/">
             <div>
               {/* Switch Mode Button */}
               <div className="fixed top-4 left-4 z-50">
