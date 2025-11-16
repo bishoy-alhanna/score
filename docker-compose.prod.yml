@@ -30,8 +30,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-  redis_data:
-    driver: local      - ./database/schema_multi_org.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/schema_multi_org.sql:/docker-entrypoint-initdb.d/01-schema.sql
     ports:
       - "5432:5432"
     networks:
