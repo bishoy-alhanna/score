@@ -12,8 +12,8 @@
 
 ### 2. Domain Configuration
 Ensure you have configured DNS records for:
-- `score.al-hanna.com` → Your server IP
-- `admin.score.al-hanna.com` → Your server IP
+- `escore.al-hanna.com` → Your server IP
+- `admin.escore.al-hanna.com` → Your server IP
 
 ## 🚀 Deployment Steps
 
@@ -66,9 +66,9 @@ SMTP_PASSWORD=YOUR_SMTP_PASSWORD
 SMTP_FROM_EMAIL=noreply@al-hanna.com
 
 # Domain Configuration
-DOMAIN_NAME=score.al-hanna.com
-ADMIN_SUBDOMAIN=admin.score.al-hanna.com
-USER_SUBDOMAIN=score.al-hanna.com
+DOMAIN_NAME=escore.al-hanna.com
+ADMIN_SUBDOMAIN=admin.escore.al-hanna.com
+USER_SUBDOMAIN=escore.al-hanna.com
 ```
 
 ### Step 3: Set Up SSL Certificates
@@ -81,12 +81,12 @@ sudo apt update
 sudo apt install certbot
 
 # Generate SSL certificates
-sudo certbot certonly --standalone -d score.al-hanna.com -d admin.score.al-hanna.com
+sudo certbot certonly --standalone -d escore.al-hanna.com -d admin.escore.al-hanna.com
 
 # Copy certificates to project
 sudo mkdir -p nginx/ssl
-sudo cp /etc/letsencrypt/live/score.al-hanna.com/fullchain.pem nginx/ssl/cert.pem
-sudo cp /etc/letsencrypt/live/score.al-hanna.com/privkey.pem nginx/ssl/key.pem
+sudo cp /etc/letsencrypt/live/escore.al-hanna.com/fullchain.pem nginx/ssl/cert.pem
+sudo cp /etc/letsencrypt/live/escore.al-hanna.com/privkey.pem nginx/ssl/key.pem
 sudo chown -R $USER:$USER nginx/ssl
 ```
 
@@ -110,8 +110,8 @@ The nginx configuration is already set up in `nginx/nginx.conf`. Verify it match
 cat nginx/nginx.conf | grep server_name
 
 # Should show:
-# server_name score.al-hanna.com;
-# server_name admin.score.al-hanna.com;
+# server_name escore.al-hanna.com;
+# server_name admin.escore.al-hanna.com;
 ```
 
 ### Step 5: Deploy the Application
@@ -144,8 +144,8 @@ docker-compose -f docker-compose.prod.yml ps
 docker-compose -f docker-compose.prod.yml logs -f
 
 # Test endpoints
-curl https://score.al-hanna.com
-curl https://admin.score.al-hanna.com
+curl https://escore.al-hanna.com
+curl https://admin.escore.al-hanna.com
 ```
 
 ### Step 7: Initialize Database (First Time Only)
@@ -328,7 +328,7 @@ docker-compose -f docker-compose.prod.yml up -d service-name
 ls -la nginx/ssl/
 
 # Test SSL configuration
-openssl s_client -connect score.al-hanna.com:443
+openssl s_client -connect escore.al-hanna.com:443
 ```
 
 ### Database Connection Issues
