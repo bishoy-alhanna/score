@@ -53,8 +53,11 @@ function AuthProvider({ children }) {
   const [currentOrganization, setCurrentOrganization] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  console.log('AuthProvider mounted')
+
   useEffect(() => {
     const token = localStorage.getItem('authToken')
+    console.log('Token from storage:', token ? 'exists' : 'null')
     if (token) {
       verifyToken(token)
     } else {
@@ -393,13 +396,17 @@ function OrganizationSetup() {
 // but updated to work with the multi-organization context...
 
 function App() {
+  console.log('App component rendering')
   const [superAdminMode, setSuperAdminMode] = useState(false)
   const [superAdmin, setSuperAdmin] = useState(null)
 
   useEffect(() => {
+    console.log('App useEffect running')
     // Check if super admin is already logged in
     const superAdminToken = localStorage.getItem('superAdminToken')
     const superAdminData = localStorage.getItem('superAdminData')
+    
+    console.log('Super admin token:', superAdminToken ? 'exists' : 'null')
     
     if (superAdminToken && superAdminData) {
       setSuperAdmin(JSON.parse(superAdminData))
