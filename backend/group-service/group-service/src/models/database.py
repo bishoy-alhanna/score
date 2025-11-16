@@ -42,8 +42,9 @@ class GroupMember(db.Model):
     group_id = db.Column(db.String(36), db.ForeignKey('groups.id'), nullable=False)
     user_id = db.Column(db.String(36), nullable=False)
     organization_id = db.Column(db.String(36), nullable=False)
-    role = db.Column(db.String(50), default='MEMBER')  # MEMBER, ADMIN
+    role = db.Column(db.String(20), default='MEMBER')  # MEMBER, ADMIN, MODERATOR
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
     
     # Unique constraint for user in group
     __table_args__ = (db.UniqueConstraint('group_id', 'user_id', name='unique_user_per_group'),)
@@ -55,6 +56,7 @@ class GroupMember(db.Model):
             'user_id': self.user_id,
             'organization_id': self.organization_id,
             'role': self.role,
-            'joined_at': self.joined_at.isoformat() if self.joined_at else None
+            'joined_at': self.joined_at.isoformat() if self.joined_at else None,
+            'is_active': self.is_active
         }
 
