@@ -278,7 +278,7 @@ def delete_group(group_id):
 
 @groups_bp.route('/<group_id>/members', methods=['GET'])
 def get_members(group_id):
-    """Get all members of a group"""
+    """Get all members of a group with their user details"""
     try:
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
@@ -305,8 +305,56 @@ def get_members(group_id):
             organization_id=organization_id
         ).all()
         
+        # Fetch user details for each member
+        members_with_details = []
+        for member in members:
+            member_dict = member.to_dict()
+            
+            # Query user details directly from database
+            try:
+                from sqlalchemy import text
+                query = text("""
+                    SELECT id, username, email, first_name, last_name 
+                    FROM users 
+                    WHERE id = :user_id
+                """)
+                result = db.session.execute(query, {'user_id': str(member.user_id)})
+                user_row = result.fetchone()
+                
+                if user_row:
+                    member_dict['user'] = {
+                        'id': str(user_row[0]),
+                        'username': user_row[1],
+                        'email': user_row[2],
+                        'first_name': user_row[3],
+                        'last_name': user_row[4],
+                        'full_name': f"{user_row[3] or ''} {user_row[4] or ''}".strip() or 'Unknown User'
+                    }
+                    print(f"[DEBUG] Found user: {user_row[1]}")
+                else:
+                    print(f"[DEBUG] User not found: {member.user_id}")
+                    member_dict['user'] = {
+                        'id': str(member.user_id),
+                        'username': 'Unknown',
+                        'full_name': 'Unknown User'
+                    }
+            except Exception as e:
+                print(f"[WARNING] Failed to fetch user details for {member.user_id}: {str(e)}")
+                import traceback
+                print(traceback.format_exc())
+                member_dict['user'] = {
+                    'id': str(member.user_id),
+                    'username': 'Unknown',
+                    'full_name': 'Unknown User'
+                }
+            
+            members_with_details.append(member_dict)
+        
+        print(f"[DEBUG] Returning {len(members_with_details)} members with details")
+        print(f"[DEBUG] Sample member data: {members_with_details[0] if members_with_details else 'No members'}")
+        
         return jsonify({
-            'members': [m.to_dict() for m in members]
+            'members': members_with_details
         }), 200
         
     except Exception as e:

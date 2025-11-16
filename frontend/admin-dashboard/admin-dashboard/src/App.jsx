@@ -1553,13 +1553,17 @@ function GroupsManagement() {
               <div>
                 <h4 className="font-medium mb-2">Group Members</h4>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {groupUsers.map((user) => (
-                    <div key={user.id} className="flex justify-between items-center p-2 border rounded">
-                      <span>{user.first_name} {user.last_name} ({user.username})</span>
+                  {groupUsers.map((member) => (
+                    <div key={member.id} className="flex justify-between items-center p-2 border rounded">
+                      <span>
+                        {member.user?.full_name || `${member.user?.first_name || ''} ${member.user?.last_name || ''}`.trim() || member.user?.username || 'Unknown User'}
+                        {member.user?.username && ` (${member.user.username})`}
+                        {member.role === 'ADMIN' && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Admin</span>}
+                      </span>
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => handleRemoveUserFromGroup(selectedGroup.id, user.id)}
+                        onClick={() => handleRemoveUserFromGroup(selectedGroup.id, member.id)}
                       >
                         Remove
                       </Button>

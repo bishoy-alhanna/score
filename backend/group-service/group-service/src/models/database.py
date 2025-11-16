@@ -24,11 +24,11 @@ class Group(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
+            'id': str(self.id) if self.id else None,
             'name': self.name,
             'description': self.description,
-            'organization_id': self.organization_id,
-            'created_by': self.created_by,
+            'organization_id': str(self.organization_id) if self.organization_id else None,
+            'created_by': str(self.created_by) if self.created_by else None,
             'is_active': self.is_active,
             'member_count': len(self.members),
             'created_at': self.created_at.isoformat() if self.created_at else None,
@@ -51,10 +51,10 @@ class GroupMember(db.Model):
     
     def to_dict(self):
         return {
-            'id': self.id,
-            'group_id': self.group_id,
-            'user_id': self.user_id,
-            'organization_id': self.organization_id,
+            'id': str(self.id) if self.id else None,
+            'group_id': str(self.group_id) if self.group_id else None,
+            'user_id': str(self.user_id) if self.user_id else None,
+            'organization_id': str(self.organization_id) if self.organization_id else None,
             'role': self.role,
             'joined_at': self.joined_at.isoformat() if self.joined_at else None,
             'is_active': self.is_active
