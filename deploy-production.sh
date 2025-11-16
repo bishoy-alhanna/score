@@ -23,9 +23,13 @@ if [ ! -f .env.production ]; then
     exit 1
 fi
 
+# Copy .env.production to .env (Docker Compose reads .env by default)
+echo -e "${GREEN}Copying .env.production to .env...${NC}"
+cp .env.production .env
+
 # Load production environment variables
 echo -e "${GREEN}Loading production environment variables...${NC}"
-export $(cat .env.production | grep -v '^#' | xargs)
+export $(cat .env | grep -v '^#' | xargs)
 
 # Confirm deployment
 echo ""
