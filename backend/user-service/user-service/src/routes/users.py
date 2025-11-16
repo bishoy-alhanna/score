@@ -258,13 +258,79 @@ def update_profile():
         
         data = request.get_json()
         
-        # Update allowed fields
+        # Basic Personal Information
         if 'first_name' in data:
             user.first_name = data['first_name']
         if 'last_name' in data:
             user.last_name = data['last_name']
-        if 'department' in data:
-            user.department = data['department']
+        if 'birthdate' in data:
+            user.birthdate = data['birthdate']
+        if 'phone_number' in data:
+            user.phone_number = data['phone_number']
+        if 'bio' in data:
+            user.bio = data['bio']
+        if 'gender' in data:
+            user.gender = data['gender']
+        
+        # Academic Information
+        if 'university_name' in data:
+            user.university_name = data['university_name']
+        if 'faculty_name' in data:
+            user.faculty_name = data['faculty_name']
+        if 'school_year' in data:
+            user.school_year = data['school_year']
+        if 'student_id' in data:
+            user.student_id = data['student_id']
+        if 'major' in data:
+            user.major = data['major']
+        if 'gpa' in data:
+            # Validate GPA range
+            try:
+                gpa_value = float(data['gpa'])
+                if 0.0 <= gpa_value <= 4.0:
+                    user.gpa = gpa_value
+            except (ValueError, TypeError):
+                pass  # Invalid GPA, skip
+        if 'graduation_year' in data:
+            user.graduation_year = data['graduation_year']
+        
+        # Contact Information
+        if 'address_line1' in data:
+            user.address_line1 = data['address_line1']
+        if 'address_line2' in data:
+            user.address_line2 = data['address_line2']
+        if 'city' in data:
+            user.city = data['city']
+        if 'state' in data:
+            user.state = data['state']
+        if 'postal_code' in data:
+            user.postal_code = data['postal_code']
+        if 'country' in data:
+            user.country = data['country']
+        
+        # Emergency Contact Information
+        if 'emergency_contact_name' in data:
+            user.emergency_contact_name = data['emergency_contact_name']
+        if 'emergency_contact_phone' in data:
+            user.emergency_contact_phone = data['emergency_contact_phone']
+        if 'emergency_contact_relationship' in data:
+            user.emergency_contact_relationship = data['emergency_contact_relationship']
+        
+        # Social Media & Links
+        if 'linkedin_url' in data:
+            user.linkedin_url = data['linkedin_url']
+        if 'github_url' in data:
+            user.github_url = data['github_url']
+        if 'personal_website' in data:
+            user.personal_website = data['personal_website']
+        
+        # User Preferences
+        if 'timezone' in data:
+            user.timezone = data['timezone']
+        if 'language' in data:
+            user.language = data['language']
+        if 'notification_preferences' in data:
+            user.notification_preferences = data['notification_preferences']
         
         db.session.commit()
         

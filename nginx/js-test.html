@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .pass {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .fail {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            border-color: #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 JavaScript Loading Test</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        console.log("=== JAVASCRIPT IS RUNNING ===");
+        
+        const results = document.getElementById('results');
+        
+        function addResult(title, message, status) {
+            const div = document.createElement('div');
+            div.className = `test ${status}`;
+            div.innerHTML = `<strong>${title}</strong><br>${message}`;
+            results.appendChild(div);
+        }
+        
+        // Test 1: Basic JavaScript
+        console.log("Test 1: Basic JavaScript execution");
+        addResult("✅ Test 1: JavaScript Execution", "JavaScript is running successfully", "pass");
+        
+        // Test 2: Console availability
+        console.log("Test 2: Console check");
+        if (typeof console !== 'undefined' && console.log) {
+            addResult("✅ Test 2: Console", "Console is available and working", "pass");
+        } else {
+            addResult("❌ Test 2: Console", "Console is NOT available", "fail");
+        }
+        
+        // Test 3: LocalStorage
+        console.log("Test 3: LocalStorage check");
+        try {
+            localStorage.setItem('test', 'value');
+            const value = localStorage.getItem('test');
+            localStorage.removeItem('test');
+            if (value === 'value') {
+                addResult("✅ Test 3: LocalStorage", "LocalStorage is working", "pass");
+            } else {
+                addResult("❌ Test 3: LocalStorage", "LocalStorage read/write failed", "fail");
+            }
+        } catch (e) {
+            addResult("❌ Test 3: LocalStorage", `LocalStorage error: ${e.message}`, "fail");
+        }
+        
+        // Test 4: Check for authToken
+        console.log("Test 4: Checking for authToken");
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            addResult("⚠️ Test 4: Auth Token", `Token found: ${token.substring(0, 20)}...`, "info");
+        } else {
+            addResult("ℹ️ Test 4: Auth Token", "No auth token found (this is normal for first visit)", "info");
+        }
+        
+        // Test 5: Fetch API
+        console.log("Test 5: Testing fetch API");
+        fetch('/api/auth/organizations')
+            .then(response => {
+                console.log("Fetch response:", response);
+                if (response.ok) {
+                    addResult("✅ Test 5: Fetch API", `Organizations API responded with status ${response.status}`, "pass");
+                } else {
+                    addResult("⚠️ Test 5: Fetch API", `Organizations API responded with status ${response.status}`, "info");
+                }
+            })
+            .catch(error => {
+                console.error("Fetch error:", error);
+                addResult("❌ Test 5: Fetch API", `Fetch failed: ${error.message}`, "fail");
+            });
+        
+        // Test 6: React check
+        console.log("Test 6: Checking if React is loaded");
+        setTimeout(() => {
+            const root = document.getElementById('root');
+            if (root && root.children.length > 0) {
+                addResult("✅ Test 6: React Mount", "React has mounted content to #root", "pass");
+            } else {
+                addResult("❌ Test 6: React Mount", "React has NOT mounted content to #root", "fail");
+            }
+        }, 3000);
+        
+        console.log("=== ALL TESTS INITIATED ===");
+        console.log("If you see this message, JavaScript IS working!");
+        console.log("Check the page for visual test results.");
+    </script>
+</body>
+</html>

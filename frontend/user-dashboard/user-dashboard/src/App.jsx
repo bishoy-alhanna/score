@@ -48,22 +48,30 @@ function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log('AuthProvider mounted')
     const token = localStorage.getItem('authToken')
+    console.log('Token from storage:', token ? 'exists' : 'null')
+    
     if (token) {
+      console.log('Verifying token...')
       verifyToken(token)
     } else {
       // No token - show login immediately
-      console.log('No token found - showing login page')
+      console.log('No token found - setting loading to false')
       setLoading(false)
+      console.log('Loading state set to false')
     }
     
     // Failsafe: force show login after 2 seconds regardless
     const failsafe = setTimeout(() => {
-      console.log('Failsafe timeout - forcing login page to show')
+      console.log('Failsafe triggered - forcing loading to false')
       setLoading(false)
     }, 2000)
     
-    return () => clearTimeout(failsafe)
+    return () => {
+      console.log('AuthProvider cleanup')
+      clearTimeout(failsafe)
+    }
   }, [])
 
   const verifyToken = async (token) => {
@@ -925,6 +933,7 @@ function Profile() {
 
 // Main app component
 function App() {
+  console.log('App component rendering')
   return (
     <ErrorBoundary>
       <TranslationWrapper>
@@ -939,16 +948,22 @@ function App() {
 }
 
 function AppContent() {
+  console.log('AppContent component rendering')
   const { user, loading } = useAuth()
   const { t } = useTranslation()
 
+  console.log('AppContent render - loading:', loading, 'user:', user ? 'exists' : 'null')
+
   if (loading) {
+    console.log('Showing loading spinner')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <LoadingSpinner size="xl" text="Loading application..." />
       </div>
     )
   }
+
+  console.log('Loading complete, showing', user ? 'dashboard' : 'login')
 
   if (!user) {
     return <Login />

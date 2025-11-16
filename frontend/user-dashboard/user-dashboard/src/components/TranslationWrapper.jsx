@@ -2,22 +2,39 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 const TranslationWrapper = ({ children }) => {
+  console.log('TranslationWrapper rendering')
   const { i18n } = useTranslation();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    console.log('TranslationWrapper useEffect - i18n.isInitialized:', i18n.isInitialized)
+    
     const checkReady = () => {
-      if (i18n.isInitialized && i18n.hasResourceBundle(i18n.language, 'translation')) {
+      const hasResources = i18n.hasResourceBundle(i18n.language, 'translation')
+      console.log('Checking i18n ready - isInitialized:', i18n.isInitialized, 'hasResources:', hasResources, 'language:', i18n.language)
+      
+      if (i18n.isInitialized && hasResources) {
+        console.log('i18n is ready!')
         setIsReady(true);
       } else {
         setTimeout(checkReady, 50);
       }
     };
     
-    checkReady();
+    // Check immediately if already initialized
+    if (i18n.isInitialized) {
+      console.log('i18n already initialized')
+      setIsReady(true)
+    } else {
+      console.log('Starting i18n ready check loop')
+      checkReady();
+    }
   }, [i18n]);
 
+  console.log('TranslationWrapper - isReady:', isReady)
+
   if (!isReady) {
+    console.log('TranslationWrapper showing loading...')
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -28,6 +45,7 @@ const TranslationWrapper = ({ children }) => {
     );
   }
 
+  console.log('TranslationWrapper rendering children')
   return children;
 };
 

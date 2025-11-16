@@ -3,164 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debug - Score Platform</title>
+    <title>Dashboard Debug Test</title>
     <style>
         body {
-            font-family: monospace;
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
             padding: 20px;
-            background: #1e1e1e;
-            color: #00ff00;
+            background: #f5f5f5;
         }
-        .test {
-            margin: 10px 0;
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
             padding: 10px;
-            background: #2d2d2d;
-            border-left: 3px solid #00ff00;
+            margin: 10px 0;
+            border-radius: 4px;
         }
-        .error {
-            border-left-color: #ff0000;
-            color: #ff0000;
-        }
-        .success {
-            border-left-color: #00ff00;
-        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .warning { background: #fff3cd; color: #856404; }
         button {
-            background: #00ff00;
-            color: #000;
+            background: #007bff;
+            color: white;
             border: none;
             padding: 10px 20px;
-            margin: 5px;
+            border-radius: 4px;
             cursor: pointer;
-            font-weight: bold;
+            margin: 5px;
         }
-        #output {
-            white-space: pre-wrap;
-            background: #000;
-            padding: 15px;
-            border-radius: 5px;
-            margin-top: 20px;
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        #console-log {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
-    <h1>🔍 Score Platform Debug Tool</h1>
-    <p>This page will help diagnose the loading screen issue</p>
+    <h1>🔍 Dashboard Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. API Connectivity Test</h2>
+        <button onclick="testLogin()">Test Login API</button>
+        <button onclick="testVerify()">Test Verify API</button>
+        <button onclick="testHealth()">Test Health Check</button>
+        <div id="api-results"></div>
+    </div>
 
-    <button onclick="testAPI()">Test API Connection</button>
-    <button onclick="testAuth()">Test Auth Verify</button>
-    <button onclick="testAuthWithTimeout()">Test Auth with Timeout</button>
-    <button onclick="clearStorage()">Clear Storage</button>
+    <div class="test-section">
+        <h2>2. Dashboard Loading Test</h2>
+        <button onclick="testDashboardJS()">Load Dashboard JS</button>
+        <button onclick="clearCache()">Clear LocalStorage & Reload</button>
+        <div id="dashboard-results"></div>
+    </div>
 
-    <div id="output"></div>
+    <div class="test-section">
+        <h2>3. Browser Information</h2>
+        <div id="browser-info"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Console Log</h2>
+        <div id="console-log"></div>
+    </div>
 
     <script>
-        const log = (message, type = 'info') => {
-            const output = document.getElementById('output');
-            const timestamp = new Date().toLocaleTimeString();
-            output.innerHTML += `[${timestamp}] ${type.toUpperCase()}: ${message}\n`;
+        // Intercept console logs
+        const consoleDiv = document.getElementById('console-log');
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addToConsole(type, ...args) {
+            const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+            const time = new Date().toLocaleTimeString();
+            consoleDiv.innerHTML += `<div style="color: ${type === 'error' ? 'red' : type === 'warn' ? 'orange' : 'black'}">[${time}] ${type.toUpperCase()}: ${msg}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole('log', ...args);
         };
 
-        async function testAPI() {
-            log('Testing API Gateway...');
-            try {
-                const response = await fetch('/api/health');
-                const data = await response.json();
-                log(JSON.stringify(data, null, 2), 'success');
-            } catch (error) {
-                log(`Error: ${error.message}`, 'error');
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole('error', ...args);
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole('warn', ...args);
+        };
+
+        // Display browser info
+        function displayBrowserInfo() {
+            const info = {
+                'User Agent': navigator.userAgent,
+                'Platform': navigator.platform,
+                'Language': navigator.language,
+                'Cookies Enabled': navigator.cookieEnabled,
+                'Online': navigator.onLine,
+                'Current URL': window.location.href,
+                'LocalStorage Available': typeof(Storage) !== "undefined",
+                'Stored Token': localStorage.getItem('authToken') ? 'Yes (truncated: ' + localStorage.getItem('authToken').substring(0, 30) + '...)' : 'No'
+            };
+
+            let html = '<table style="width: 100%">';
+            for (const [key, value] of Object.entries(info)) {
+                html += `<tr><td style="padding: 5px; font-weight: bold;">${key}:</td><td style="padding: 5px;">${value}</td></tr>`;
             }
+            html += '</table>';
+            document.getElementById('browser-info').innerHTML = html;
         }
 
-        async function testAuth() {
-            log('Testing Auth Verify endpoint...');
-            const token = localStorage.getItem('authToken');
-            log(`Token found: ${token ? 'YES' : 'NO'}`);
-            
-            if (!token) {
-                log('No token found in localStorage', 'error');
-                return;
-            }
+        async function testHealth() {
+            const results = document.getElementById('api-results');
+            results.innerHTML = '<div class="status info">Testing health endpoint...</div>';
 
             try {
-                const response = await fetch('/api/auth/verify', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                log(`Response status: ${response.status}`);
+                const response = await fetch('/health');
+                const text = await response.text();
                 
                 if (response.ok) {
-                    const data = await response.json();
-                    log(JSON.stringify(data, null, 2), 'success');
+                    results.innerHTML = `<div class="status success">✅ Health Check Passed<br>Response: ${text}</div>`;
                 } else {
-                    const error = await response.text();
-                    log(`Error response: ${error}`, 'error');
+                    results.innerHTML = `<div class="status error">❌ Health Check Failed<br>Status: ${response.status}</div>`;
                 }
             } catch (error) {
-                log(`Fetch error: ${error.message}`, 'error');
-                log(`Stack: ${error.stack}`, 'error');
+                results.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
             }
         }
 
-        async function testAuthWithTimeout() {
-            log('Testing Auth Verify with 5-second timeout...');
+        async function testLogin() {
+            const results = document.getElementById('api-results');
+            results.innerHTML = '<div class="status info">Testing login API...</div>';
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'password123',
+                        organization_name: 'Tech University'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    console.log('Login successful, token:', data.token.substring(0, 30) + '...');
+                    localStorage.setItem('authToken', data.token);
+                    results.innerHTML = `
+                        <div class="status success">
+                            ✅ Login Successful<br>
+                            Token: ${data.token.substring(0, 50)}...<br>
+                            User: ${data.user.username} (${data.user.email})<br>
+                            Organization: ${data.debug_org_name}
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML = `<div class="status error">❌ Login Failed<br><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+                }
+            } catch (error) {
+                results.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testVerify() {
+            const results = document.getElementById('api-results');
             const token = localStorage.getItem('authToken');
-            
+
             if (!token) {
-                log('No token found in localStorage', 'error');
+                results.innerHTML = '<div class="status warning">⚠️ No token found. Please login first.</div>';
                 return;
             }
 
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
+            results.innerHTML = '<div class="status info">Testing verify API...</div>';
 
+            try {
                 const response = await fetch('/api/auth/verify', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    signal: controller.signal
+                        'Authorization': `Bearer ${token}`
+                    }
                 });
 
-                clearTimeout(timeoutId);
-                
-                log(`Response status: ${response.status}`);
                 const data = await response.json();
-                log(JSON.stringify(data, null, 2), 'success');
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    log('Request timed out after 5 seconds!', 'error');
-                    log('This means the API is not responding', 'error');
+                
+                if (response.ok && data.user) {
+                    console.log('Token verified successfully');
+                    results.innerHTML = `
+                        <div class="status success">
+                            ✅ Token Verified<br>
+                            User: ${data.user.username}<br>
+                            Email: ${data.user.email}<br>
+                            Role: ${data.user.organizations[0]?.role}<br>
+                            Organization: ${data.user.organizations[0]?.organization_name}
+                        </div>
+                    `;
                 } else {
-                    log(`Error: ${error.message}`, 'error');
+                    results.innerHTML = `<div class="status error">❌ Verification Failed<br><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
                 }
+            } catch (error) {
+                results.innerHTML = `<div class="status error">❌ Error: ${error.message}</div>`;
             }
         }
 
-        function clearStorage() {
-            log('Clearing localStorage and sessionStorage...');
-            localStorage.clear();
-            sessionStorage.clear();
-            log('Storage cleared!', 'success');
-            log('Reloading page in 2 seconds...');
-            setTimeout(() => location.reload(), 2000);
+        async function testDashboardJS() {
+            const results = document.getElementById('dashboard-results');
+            results.innerHTML = '<div class="status info">Testing dashboard JavaScript loading...</div>';
+
+            try {
+                // Try to load the main JS file
+                const response = await fetch('/assets/index-DhuatTXy.js');
+                const jsCode = await response.text();
+                
+                const hasFailsafe = jsCode.includes('Failsafe timeout');
+                const hasAuthProvider = jsCode.includes('AuthProvider') || jsCode.includes('useAuth');
+                const hasLoginPage = jsCode.includes('login') || jsCode.includes('Login');
+
+                results.innerHTML = `
+                    <div class="status ${response.ok ? 'success' : 'error'}">
+                        ${response.ok ? '✅' : '❌'} JavaScript File: ${response.status}<br>
+                        File Size: ${(jsCode.length / 1024).toFixed(2)} KB<br>
+                        Has Failsafe Code: ${hasFailsafe ? '✅ Yes' : '❌ No'}<br>
+                        Has Auth Provider: ${hasAuthProvider ? '✅ Yes' : '❌ No'}<br>
+                        Has Login Code: ${hasLoginPage ? '✅ Yes' : '❌ No'}
+                    </div>
+                `;
+            } catch (error) {
+                results.innerHTML = `<div class="status error">❌ Error loading JS: ${error.message}</div>`;
+            }
         }
 
-        // Auto-run on load
-        window.addEventListener('load', () => {
-            log('Debug page loaded');
-            log(`Current URL: ${window.location.href}`);
-            log(`LocalStorage items: ${localStorage.length}`);
-            log(`SessionStorage items: ${sessionStorage.length}`);
+        function clearCache() {
+            console.log('Clearing localStorage and reloading...');
+            localStorage.clear();
+            alert('Cache cleared! Page will reload in 2 seconds...');
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 2000);
+        }
+
+        // Run on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            displayBrowserInfo();
+            console.log('Debug page loaded');
+            console.log('Testing if dashboard failsafe would trigger...');
             
+            // Simulate what the dashboard does
             const token = localStorage.getItem('authToken');
-            if (token) {
-                log(`Auth token present: ${token.substring(0, 20)}...`);
+            if (!token) {
+                console.log('No token found - dashboard would show login immediately');
+            } else {
+                console.log('Token found - dashboard would verify it');
+                console.log('After 2 seconds, failsafe should force login page to show');
             }
         });
     </script>

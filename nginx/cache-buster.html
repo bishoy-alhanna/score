@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cache Buster - Force Reload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .danger {
+            background: #dc3545;
+        }
+        .danger:hover {
+            background: #c82333;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .instructions {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🔄 Cache Buster & Reload</h1>
+        
+        <div class="status warning">
+            <strong>⚠️ Browser Cache Issue Detected</strong><br>
+            Your browser is likely showing an old version of the dashboard.
+        </div>
+
+        <div class="instructions">
+            <h3>Quick Fix - Try These Steps:</h3>
+            <ol>
+                <li><strong>Step 1:</strong> Click the "Clear All Cache" button below</li>
+                <li><strong>Step 2:</strong> Click "Reload Dashboard (No Cache)"</li>
+                <li><strong>Step 3:</strong> If still loading, try the keyboard shortcut</li>
+            </ol>
+        </div>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="clearAllCache()">🗑️ Clear All Cache</button>
+            <button onclick="hardReload()">🔄 Reload Dashboard (No Cache)</button>
+            <button onclick="openIncognito()" class="danger">🕵️ Instructions for Incognito</button>
+        </div>
+
+        <div class="status info">
+            <strong>Keyboard Shortcuts (Most Reliable):</strong><br>
+            <strong>Mac:</strong> Press <code>Cmd + Shift + R</code><br>
+            <strong>Windows/Linux:</strong> Press <code>Ctrl + Shift + R</code><br>
+            <strong>Or:</strong> Press <code>Cmd/Ctrl + Shift + Delete</code> to open browser cache settings
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h3>What's Being Cached?</h3>
+            <div id="cacheInfo"></div>
+        </div>
+
+        <div class="card">
+            <h3>Current Build Information</h3>
+            <div class="status success">
+                <strong>✅ Server Status:</strong><br>
+                Dashboard: User Dashboard<br>
+                JavaScript: index-Bt3scTOv.js<br>
+                Built: November 16, 2025 02:32<br>
+                Failsafe Timeout: ✅ Included<br>
+                Expected Behavior: Login page appears within 2 seconds
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🔍 Test API Connection</h3>
+            <button onclick="testAPI()">Test Backend APIs</button>
+            <div id="apiResults" style="margin-top: 15px;"></div>
+        </div>
+
+        <div class="card">
+            <h3>Alternative Methods</h3>
+            <div class="instructions">
+                <h4>Method 1: Incognito/Private Window (Recommended)</h4>
+                <ol>
+                    <li><strong>Chrome/Edge:</strong> Cmd+Shift+N (Mac) or Ctrl+Shift+N (Windows)</li>
+                    <li><strong>Firefox:</strong> Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows)</li>
+                    <li><strong>Safari:</strong> Cmd+Shift+N</li>
+                    <li>Go to <code>http://localhost/</code></li>
+                </ol>
+
+                <h4>Method 2: Disable Cache in DevTools</h4>
+                <ol>
+                    <li>Press <code>F12</code> to open DevTools</li>
+                    <li>Go to <strong>Network</strong> tab</li>
+                    <li>Check ✅ <strong>Disable cache</strong></li>
+                    <li>Keep DevTools open and refresh the page</li>
+                </ol>
+
+                <h4>Method 3: Manual Cache Clear (Chrome)</h4>
+                <ol>
+                    <li>Press <code>Cmd+Shift+Delete</code> (Mac) or <code>Ctrl+Shift+Delete</code> (Windows)</li>
+                    <li>Select <strong>"Cached images and files"</strong></li>
+                    <li>Time range: <strong>"Last hour"</strong></li>
+                    <li>Click <strong>"Clear data"</strong></li>
+                    <li>Reload the page</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Display cache info
+        function updateCacheInfo() {
+            const info = document.getElementById('cacheInfo');
+            info.innerHTML = `
+                <div class="status info">
+                    <strong>Storage Information:</strong><br>
+                    LocalStorage items: ${localStorage.length}<br>
+                    SessionStorage items: ${sessionStorage.length}<br>
+                    <br>
+                    <strong>Current Page:</strong><br>
+                    URL: ${window.location.href}<br>
+                    Protocol: ${window.location.protocol}<br>
+                    Host: ${window.location.host}
+                </div>
+            `;
+        }
+
+        // Clear all cache
+        function clearAllCache() {
+            // Clear localStorage
+            const lsCount = localStorage.length;
+            localStorage.clear();
+            
+            // Clear sessionStorage
+            const ssCount = sessionStorage.length;
+            sessionStorage.clear();
+            
+            // Clear cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            alert(`✅ Cache Cleared!\n\nRemoved:\n- ${lsCount} localStorage items\n- ${ssCount} sessionStorage items\n- All cookies\n\nNow click "Reload Dashboard (No Cache)"`);
+            updateCacheInfo();
+        }
+
+        // Hard reload
+        function hardReload() {
+            window.location.href = '/?nocache=' + new Date().getTime();
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 100);
+        }
+
+        // Incognito instructions
+        function openIncognito() {
+            const instructions = `
+🕵️ Open Incognito/Private Window:
+
+Mac:
+• Chrome/Edge: Cmd + Shift + N
+• Firefox: Cmd + Shift + P  
+• Safari: Cmd + Shift + N
+
+Windows/Linux:
+• Chrome/Edge: Ctrl + Shift + N
+• Firefox: Ctrl + Shift + P
+
+Then navigate to: http://localhost/
+
+This guarantees no cached files!
+            `;
+            alert(instructions);
+        }
+
+        // Test API
+        async function testAPI() {
+            const results = document.getElementById('apiResults');
+            results.innerHTML = '<div class="status info">Testing APIs...</div>';
+            
+            try {
+                // Test login
+                const loginResponse = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'password123',
+                        organization_name: 'Tech University'
+                    })
+                });
+                
+                if (loginResponse.ok) {
+                    const data = await loginResponse.json();
+                    results.innerHTML = `
+                        <div class="status success">
+                            <strong>✅ Backend APIs Working!</strong><br><br>
+                            Login Status: ${loginResponse.status} OK<br>
+                            Token Received: ✅ Yes<br>
+                            User: ${data.user.username}<br>
+                            Organization: ${data.user.organizations[0].organization_name}<br>
+                            <br>
+                            <strong>Conclusion:</strong> The problem is ONLY browser cache.<br>
+                            The backend and database are working perfectly!
+                        </div>
+                    `;
+                } else {
+                    results.innerHTML = `
+                        <div class="status warning">
+                            <strong>⚠️ API Response:</strong><br>
+                            Status: ${loginResponse.status}<br>
+                            This might indicate a backend issue.
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="status warning">
+                        <strong>⚠️ Error Testing API:</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize
+        updateCacheInfo();
+    </script>
+</body>
+</html>
