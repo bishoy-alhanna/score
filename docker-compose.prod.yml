@@ -108,10 +108,11 @@ services:
       - score_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5003/health\")' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   # Scoring Service
   scoring-service:
@@ -131,10 +132,11 @@ services:
       - score_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5004/health"]
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5004/health\")' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   # Leaderboard Service
   leaderboard-service:
@@ -157,10 +159,11 @@ services:
       - score_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5005/health"]
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5005/health\")' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
   # API Gateway
   api-gateway:

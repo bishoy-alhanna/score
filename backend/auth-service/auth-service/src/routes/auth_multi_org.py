@@ -108,6 +108,38 @@ def register():
         db.session.add(user)
         db.session.commit()
         
+        # Handle organization join request if organization_name is provided
+        organization_name = data.get('organization_name')
+        if organization_name:
+            organization = Organization.query.filter_by(name=organization_name, is_active=True).first()
+            
+            if organization:
+                # Check if there's already a pending request (shouldn't happen for new users, but be safe)
+                existing_request = OrganizationJoinRequest.query.filter_by(
+                    user_id=user.id,
+                    organization_id=organization.id,
+                    status='PENDING'
+                ).first()
+                
+                if not existing_request:
+                    # Create new join request
+                    join_request = OrganizationJoinRequest(
+                        user_id=user.id,
+                        organization_id=organization.id,
+                        requested_role='USER',
+                        message=f'Registration join request from {user.first_name} {user.last_name}',
+                        status='PENDING'
+                    )
+                    db.session.add(join_request)
+                    db.session.commit()
+                    
+                    return jsonify({
+                        'message': 'User registered successfully. Join request submitted to organization.',
+                        'user': user.to_dict(),
+                        'join_request_submitted': True,
+                        'organization_name': organization_name
+                    }), 201
+        
         return jsonify({
             'message': 'User registered successfully',
             'user': user.to_dict()
