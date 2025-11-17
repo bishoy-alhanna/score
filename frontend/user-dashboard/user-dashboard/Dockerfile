@@ -16,7 +16,10 @@ RUN pnpm install
 # Copy source
 COPY . .
 
-# Build app
+# Copy production environment file
+COPY .env.production .env.production
+
+# Build app with production environment
 RUN pnpm run build
 
 RUN npm install -g serve
