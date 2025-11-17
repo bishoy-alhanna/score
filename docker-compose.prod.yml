@@ -175,11 +175,19 @@ services:
     container_name: score_api_gateway_prod
     environment:
       - AUTH_SERVICE_URL=http://auth-service:5001
+      - USER_SERVICE_URL=http://user-service:5002
+      - GROUP_SERVICE_URL=http://group-service:5003
+      - SCORING_SERVICE_URL=http://scoring-service:5004
+      - LEADERBOARD_SERVICE_URL=http://leaderboard-service:5005
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - FLASK_ENV=production
     depends_on:
       - auth-service
+      - user-service
+      - group-service
+      - scoring-service
+      - leaderboard-service
     networks:
       - score_network
     restart: unless-stopped
