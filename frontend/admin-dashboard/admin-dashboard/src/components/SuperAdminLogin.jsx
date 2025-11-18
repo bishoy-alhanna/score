@@ -131,14 +131,6 @@ const SuperAdminLogin = ({ onLoginSuccess }) => {
                 {loading ? 'Authenticating...' : 'Login as Super Admin'}
               </Button>
             </form>
-
-            <div className="mt-6 text-center text-sm text-gray-500">
-              <p>Default credentials for development:</p>
-              <p className="font-mono mt-1">
-                Username: superadmin<br />
-                Password: SuperAdmin123!
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
