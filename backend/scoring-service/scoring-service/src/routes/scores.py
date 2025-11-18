@@ -538,6 +538,8 @@ def update_score_category(category_id):
             category.description = data['description']
         if 'max_score' in data:
             category.max_score = data['max_score']
+        if 'is_predefined' in data:
+            category.is_predefined = data['is_predefined']
         
         db.session.commit()
         
@@ -563,11 +565,7 @@ def delete_score_category(category_id):
         if category.organization_id != user_payload.get('organization_id'):
             return jsonify({'error': 'Permission denied'}), 403
         
-        # Check if category is predefined - cannot be deleted
-        if getattr(category, 'is_predefined', False):
-            return jsonify({'error': 'Cannot delete predefined categories'}), 400
-        
-        # Soft delete
+        # Soft delete (org admins can delete any category including predefined ones)
         category.is_active = False
         db.session.commit()
         

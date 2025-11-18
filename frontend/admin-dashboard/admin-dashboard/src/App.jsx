@@ -1592,10 +1592,12 @@ function ScoringManagement() {
 
   // Category management state
   const [showCreateCategory, setShowCreateCategory] = useState(false)
+  const [editingCategory, setEditingCategory] = useState(null)
   const [newCategory, setNewCategory] = useState({
     name: '',
     description: '',
-    max_score: 100
+    max_score: 100,
+    is_predefined: false
   })
 
   // Score assignment state
@@ -1652,7 +1654,7 @@ function ScoringManagement() {
         organization_id: currentOrganization.organization_id
       })
       setScoreCategories([...scoreCategories, response.data.category])
-      setNewCategory({ name: '', description: '', max_score: 100 })
+      setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
       setShowCreateCategory(false)
       setSuccess('Score category created successfully!')
     } catch (error) {
@@ -1660,12 +1662,34 @@ function ScoringManagement() {
     }
   }
 
-  const handleDeleteCategory = async (categoryId, categoryName, isPredefined) => {
-    if (isPredefined) {
-      setError('Cannot delete predefined categories')
-      return
+  const handleEditCategory = (category) => {
+    setEditingCategory(category)
+    setNewCategory({
+      name: category.name,
+      description: category.description,
+      max_score: category.max_score,
+      is_predefined: category.is_predefined || false
+    })
+    setShowCreateCategory(true)
+  }
+
+  const handleUpdateCategory = async (e) => {
+    e.preventDefault()
+    try {
+      const response = await api.put(`/scores/categories/${editingCategory.id}`, newCategory)
+      setScoreCategories(scoreCategories.map(cat => 
+        cat.id === editingCategory.id ? response.data.category : cat
+      ))
+      setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+      setEditingCategory(null)
+      setShowCreateCategory(false)
+      setSuccess('Score category updated successfully!')
+    } catch (error) {
+      setError('Failed to update score category')
     }
-    
+  }
+
+  const handleDeleteCategory = async (categoryId, categoryName) => {
     if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
       return
     }
@@ -1761,15 +1785,20 @@ function ScoringManagement() {
                     <p className="text-sm text-gray-500">Max Score: {category.max_score}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!category.is_predefined && (
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDeleteCategory(category.id, category.name, category.is_predefined)}
-                      >
-                        Delete
-                      </Button>
-                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleEditCategory(category)}
+                    >
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => handleDeleteCategory(category.id, category.name)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1873,17 +1902,21 @@ function ScoringManagement() {
         </Card>
       </div>
 
-      {/* Create Category Dialog */}
+      {/* Create/Edit Category Dialog */}
       {showCreateCategory && (
-        <Dialog open={showCreateCategory} onOpenChange={setShowCreateCategory}>
+        <Dialog open={showCreateCategory} onOpenChange={() => {
+          setShowCreateCategory(false)
+          setEditingCategory(null)
+          setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+        }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create Score Category</DialogTitle>
+              <DialogTitle>{editingCategory ? 'Edit Score Category' : 'Create Score Category'}</DialogTitle>
               <DialogDescription>
-                Create a new scoring category for your organization
+                {editingCategory ? 'Update the scoring category' : 'Create a new scoring category for your organization'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateCategory} className="space-y-4">
+            <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory} className="space-y-4">
               <div>
                 <Label htmlFor="category_name">Category Name</Label>
                 <Input
@@ -1911,9 +1944,28 @@ function ScoringManagement() {
                   required
                 />
               </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="is_predefined"
+                  checked={newCategory.is_predefined}
+                  onChange={(e) => setNewCategory({ ...newCategory, is_predefined: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="is_predefined" className="cursor-pointer">
+                  Mark as Predefined Category
+                  <span className="block text-xs text-gray-500">
+                    Predefined categories are highlighted and can be used for standard activities
+                  </span>
+                </Label>
+              </div>
               <div className="flex space-x-2">
-                <Button type="submit">Create Category</Button>
-                <Button type="button" variant="outline" onClick={() => setShowCreateCategory(false)}>
+                <Button type="submit">{editingCategory ? 'Update Category' : 'Create Category'}</Button>
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowCreateCategory(false)
+                  setEditingCategory(null)
+                  setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+                }}>
                   Cancel
                 </Button>
               </div>
