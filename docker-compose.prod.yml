@@ -79,6 +79,8 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - FLASK_ENV=production
+    volumes:
+      - user_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -259,6 +261,8 @@ volumes:
   redis_data:
     driver: local
   nginx_logs:
+    driver: local
+  user_uploads:
     driver: local
 
 networks:
