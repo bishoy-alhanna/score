@@ -762,6 +762,7 @@ function UsersManagement() {
   const [editingUser, setEditingUser] = useState(null)
   const [passwordResetUser, setPasswordResetUser] = useState(null)
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null)
+  const [imagePopup, setImagePopup] = useState({ open: false, url: '', userName: '' })
   const { currentOrganization } = useAuth()
 
   const [inviteData, setInviteData] = useState({
@@ -1056,9 +1057,38 @@ function UsersManagement() {
                 <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3">
-                      <div className="bg-blue-100 rounded-full p-2">
-                        <Users className="h-5 w-5 text-blue-600" />
-                      </div>
+                      {user.profile_picture_url ? (
+                        <button
+                          onClick={() => setImagePopup({
+                            open: true,
+                            url: user.profile_picture_url,
+                            userName: `${user.first_name} ${user.last_name}`
+                          })}
+                          className="relative group cursor-pointer"
+                        >
+                          <img
+                            src={user.profile_picture_url}
+                            alt={`${user.first_name} ${user.last_name}`}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 group-hover:border-blue-500 transition-colors"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextElementSibling.style.display = 'flex';
+                            }}
+                          />
+                          <div className="bg-blue-100 rounded-full p-2 w-10 h-10 hidden items-center justify-center">
+                            <Users className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-full transition-all">
+                            <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                            </svg>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="bg-blue-100 rounded-full p-2">
+                          <Users className="h-5 w-5 text-blue-600" />
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium">{user.first_name} {user.last_name}</p>
                         <p className="text-sm text-gray-600">@{user.username}</p>
@@ -1244,6 +1274,39 @@ function UsersManagement() {
             <Button variant="destructive" onClick={handleDeleteUser}>
               Remove User
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Picture Popup */}
+      <Dialog open={imagePopup.open} onOpenChange={(open) => setImagePopup({ ...imagePopup, open })}>
+        <DialogContent className="max-w-4xl p-0 bg-transparent border-none shadow-none">
+          <div className="relative bg-white rounded-lg overflow-hidden">
+            {/* Header */}
+            <div className="bg-gray-900 bg-opacity-90 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-medium text-white">{imagePopup.userName}</h3>
+              <button
+                onClick={() => setImagePopup({ open: false, url: '', userName: '' })}
+                className="text-white hover:text-gray-300 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Image */}
+            <div className="bg-gray-50 flex items-center justify-center p-8">
+              <img
+                src={imagePopup.url}
+                alt={imagePopup.userName}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                onError={(e) => {
+                  e.target.src = '';
+                  e.target.alt = 'Failed to load image';
+                }}
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>
