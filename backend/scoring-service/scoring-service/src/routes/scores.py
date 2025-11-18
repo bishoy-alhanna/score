@@ -531,15 +531,10 @@ def update_score_category(category_id):
         user_org_id = user_payload.get('organization_id')
         user_role = user_payload.get('role', 'USER')
         
-        # Debug logging
-        print(f"DEBUG UPDATE: user_org_id={user_org_id}, category_org_id={category.organization_id}, user_role={user_role}")
-        print(f"DEBUG UPDATE: Match={category.organization_id == user_org_id}, Type user={type(user_org_id)}, Type cat={type(category.organization_id)}")
-        
-        # Check organization match (strict for non-admins)
+        # Check organization match (convert both to strings to handle UUID vs string comparison)
         if str(category.organization_id) != str(user_org_id):
             # Only ORG_ADMIN or super admin can modify categories from other orgs
             if user_role not in ['ORG_ADMIN', 'SUPER_ADMIN'] and not user_payload.get('is_super_admin', False):
-                print(f"DEBUG UPDATE: Permission denied - org mismatch and not admin")
                 return jsonify({'error': 'Permission denied'}), 403
         
         data = request.get_json()
@@ -578,15 +573,10 @@ def delete_score_category(category_id):
         user_org_id = user_payload.get('organization_id')
         user_role = user_payload.get('role', 'USER')
         
-        # Debug logging
-        print(f"DEBUG DELETE: user_org_id={user_org_id}, category_org_id={category.organization_id}, user_role={user_role}")
-        print(f"DEBUG DELETE: Match={category.organization_id == user_org_id}, Type user={type(user_org_id)}, Type cat={type(category.organization_id)}")
-        
-        # Check organization match (strict for non-admins)
+        # Check organization match (convert both to strings to handle UUID vs string comparison)
         if str(category.organization_id) != str(user_org_id):
             # Only ORG_ADMIN or super admin can delete categories from other orgs
             if user_role not in ['ORG_ADMIN', 'SUPER_ADMIN'] and not user_payload.get('is_super_admin', False):
-                print(f"DEBUG DELETE: Permission denied - org mismatch and not admin")
                 return jsonify({'error': 'Permission denied'}), 403
         
         # Soft delete (org admins can delete any category including predefined ones)
