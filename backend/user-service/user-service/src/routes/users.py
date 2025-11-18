@@ -1,8 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import jwt
 from werkzeug.security import generate_password_hash
+from werkzeug.utils import secure_filename
 from src.models.database import db, User, GroupMember
 import os
+import uuid
+from datetime import datetime
 
 users_bp = Blueprint('users', __name__)
 
@@ -271,6 +274,8 @@ def update_profile():
             user.bio = data['bio']
         if 'gender' in data:
             user.gender = data['gender']
+        if 'profile_picture_url' in data:
+            user.profile_picture_url = data['profile_picture_url']
         
         # Academic Information
         if 'university_name' in data:
@@ -337,6 +342,52 @@ def update_profile():
         return jsonify({
             'message': 'Profile updated successfully',
             'user': user.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@users_bp.route('/profile/upload-picture', methods=['POST'])
+def upload_profile_picture():
+    """Upload and update user profile picture"""
+    try:
+        user, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+        filename = file.filename.lower()
+        if not any(filename.endswith('.' + ext) for ext in allowed_extensions):
+            return jsonify({'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, webp'}), 400
+        
+        # Create secure filename with UUID to avoid collisions
+        file_extension = filename.rsplit('.', 1)[1]
+        unique_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
+        
+        # Create upload directory if it doesn't exist
+        upload_dir = os.path.join(os.getcwd(), 'uploads', 'profile_pictures')
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Save file
+        file_path = os.path.join(upload_dir, unique_filename)
+        file.save(file_path)
+        
+        # Update user's profile picture URL
+        user.profile_picture_url = f"/uploads/profile_pictures/{unique_filename}"
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Profile picture uploaded successfully',
+            'profile_picture_url': user.profile_picture_url
         }), 200
         
     except Exception as e:
