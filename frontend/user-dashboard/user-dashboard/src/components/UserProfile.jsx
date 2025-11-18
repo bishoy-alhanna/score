@@ -110,12 +110,20 @@ const UserProfile = ({ organizationId }) => {
     // Upload file
     setUploadingImage(true);
     setError('');
+    setSuccess('');
 
     try {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.post('/profile/upload-picture', formData);
+      console.log('Uploading profile picture...');
+      const response = await api.post('/profile/upload-picture', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log('Upload response:', response.data);
 
       // Update profile with new picture URL
       setProfile(prev => ({
@@ -126,10 +134,13 @@ const UserProfile = ({ organizationId }) => {
       setSuccess('Profile picture updated successfully!');
     } catch (error) {
       console.error('Error uploading image:', error);
-      setError(error.response?.data?.error || 'Failed to upload image');
+      console.error('Error details:', error.response || error.message);
+      setError(error.response?.data?.error || error.message || 'Failed to upload image');
       setImagePreview(null);
     } finally {
       setUploadingImage(false);
+      // Reset file input
+      event.target.value = '';
     }
   };
 
@@ -206,9 +217,9 @@ const UserProfile = ({ organizationId }) => {
                   </div>
                   <label 
                     htmlFor="profile-picture-upload"
-                    className="absolute bottom-0 right-0 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full cursor-pointer transition-colors shadow-lg"
+                    className={`absolute bottom-0 right-0 ${uploadingImage ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 cursor-pointer'} text-white p-2 rounded-full transition-colors shadow-lg`}
                   >
-                    <Camera className="w-4 h-4" />
+                    {uploadingImage ? <Upload className="w-4 h-4 animate-pulse" /> : <Camera className="w-4 h-4" />}
                   </label>
                   <input
                     id="profile-picture-upload"
