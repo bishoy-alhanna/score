@@ -19,6 +19,7 @@ class User(db.Model):
     department = db.Column(db.String(255))
     university_name = db.Column(db.String(255))
     faculty_name = db.Column(db.String(255))
+    profile_picture_url = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -39,6 +40,7 @@ class User(db.Model):
             'department': self.department,
             'university_name': self.university_name,
             'faculty_name': self.faculty_name,
+            'profile_picture_url': self.profile_picture_url,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
