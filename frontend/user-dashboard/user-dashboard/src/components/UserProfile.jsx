@@ -48,9 +48,9 @@ const UserProfile = ({ organizationId }) => {
       setLoading(true);
       console.log('Fetching profile...');
       const params = organizationId ? { organization_id: organizationId } : {};
-      const response = await api.get('/profile/me', { params });
+      const response = await api.get('/users/profile', { params });
       console.log('Profile response:', response.data);
-      setProfile(response.data);
+      setProfile(response.data.user || response.data);
     } catch (error) {
       console.error('Error fetching profile:', error);
       setError(`${t('profile.failedToLoad')}: ${error.response?.data?.error || error.message}`);
@@ -66,7 +66,7 @@ const UserProfile = ({ organizationId }) => {
       setSuccess('');
 
       console.log('Saving profile data:', profile);
-      const response = await api.put('/profile/me', profile);
+      const response = await api.put('/users/profile', profile);
       console.log('Save response:', response.data);
       setProfile(response.data.user || response.data);
       setSuccess(t('profile.profileUpdated'));
@@ -117,7 +117,7 @@ const UserProfile = ({ organizationId }) => {
       formData.append('file', file);
 
       console.log('Uploading profile picture...');
-      const response = await api.post('/profile/upload-picture', formData, {
+      const response = await api.post('/users/profile/upload-picture', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
