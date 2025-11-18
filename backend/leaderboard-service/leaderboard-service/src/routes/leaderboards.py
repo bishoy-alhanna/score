@@ -254,8 +254,18 @@ def get_user_leaderboard():
         leaderboard = []
         for rank, aggregate in enumerate(user_aggregates, 1):
             user_info = user_details.get(aggregate.user_id, {})
-            display_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
-            if not display_name:
+            
+            # Build display name: prefer first_name + last_name, fallback to username
+            first_name = user_info.get('first_name', '').strip()
+            last_name = user_info.get('last_name', '').strip()
+            
+            if first_name and last_name:
+                display_name = f"{first_name} {last_name}"
+            elif first_name:
+                display_name = first_name
+            elif last_name:
+                display_name = last_name
+            else:
                 display_name = user_info.get('username', f'User {str(aggregate.user_id)[:8]}')
             
             leaderboard.append({
