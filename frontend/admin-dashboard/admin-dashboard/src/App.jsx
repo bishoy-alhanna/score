@@ -2886,7 +2886,7 @@ function LeaderboardManagement() {
                                   src={(() => {
                                     if (!user.profile_picture_url || user.profile_picture_url.trim() === '') return '/default-profile.png';
                                     if (user.profile_picture_url.startsWith('http')) return user.profile_picture_url;
-                                    return `https://score.al-hanna.com${user.profile_picture_url}`;
+                                    return `https://escore.al-hanna.com${user.profile_picture_url}`;
                                   })()}
                                   alt="Profile"
                                   className="w-8 h-8 rounded-full object-cover border border-gray-300 bg-gray-100"
