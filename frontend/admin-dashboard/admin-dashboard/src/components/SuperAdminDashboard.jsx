@@ -33,6 +33,50 @@ const SuperAdminDashboard = ({ onLogout }) => {
   const [error, setError] = useState('');
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null);
 
+  // Export Settings State
+  const [showExportSettings, setShowExportSettings] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    organization: 'all', // 'all' or specific organization_id
+    birthYear: 'all', // 'all' or specific year
+    graduationYear: 'all' // 'all' or specific year
+  });
+  const [exportFields, setExportFields] = useState({
+    // Basic Information
+    fullName: true,
+    firstName: true,
+    lastName: true,
+    email: true,
+    username: true,
+    phoneNumber: true,
+    gender: false,
+    birthDate: false,
+    
+    // Academic Information
+    studentId: false,
+    major: false,
+    schoolYear: false,
+    gpa: false,
+    graduationYear: false,
+    universityName: false,
+    facultyName: false,
+    
+    // Address Information
+    city: false,
+    country: false,
+    
+    // Organization Information
+    organizationName: true,
+    organizationRole: true,
+    
+    // Status Information
+    isActive: true,
+    isVerified: false,
+    
+    // Dates
+    joinedOrganization: true,
+    accountCreated: false
+  });
+
   // API configuration
   const api = axios.create({
     baseURL: '/api',
@@ -202,6 +246,158 @@ const SuperAdminDashboard = ({ onLogout }) => {
       console.error('Error toggling user status:', error);
       setError(error.response?.data?.error || 'Failed to update user status');
     }
+  };
+
+  // Export functionality
+  const getFieldMapping = () => ({
+    fullName: { 
+      label: 'Full Name', 
+      getValue: (user) => `${user.first_name || ''} ${user.last_name || ''}`.trim() 
+    },
+    firstName: { label: 'First Name', getValue: (user) => user.first_name || '' },
+    lastName: { label: 'Last Name', getValue: (user) => user.last_name || '' },
+    email: { label: 'Email', getValue: (user) => user.email || '' },
+    username: { label: 'Username', getValue: (user) => user.username || '' },
+    phoneNumber: { label: 'Phone Number', getValue: (user) => user.phone_number || '' },
+    gender: { label: 'Gender', getValue: (user) => user.gender || '' },
+    birthDate: { label: 'Birth Date', getValue: (user) => user.birthdate ? new Date(user.birthdate).toLocaleDateString() : '' },
+    
+    studentId: { label: 'Student ID', getValue: (user) => user.student_id || '' },
+    major: { label: 'Major', getValue: (user) => user.major || '' },
+    schoolYear: { label: 'School Year', getValue: (user) => user.school_year || '' },
+    gpa: { label: 'GPA', getValue: (user) => user.gpa || '' },
+    graduationYear: { label: 'Graduation Year', getValue: (user) => user.graduation_year || '' },
+    universityName: { label: 'University', getValue: (user) => user.university_name || '' },
+    facultyName: { label: 'Faculty', getValue: (user) => user.faculty_name || '' },
+    
+    city: { label: 'City', getValue: (user) => user.city || '' },
+    country: { label: 'Country', getValue: (user) => user.country || '' },
+    
+    organizationName: { 
+      label: 'Organization(s)', 
+      getValue: (user) => user.organizations?.map(org => org.organization_name).join(', ') || '' 
+    },
+    organizationRole: { 
+      label: 'Role(s)', 
+      getValue: (user) => user.organizations?.map(org => org.role).join(', ') || '' 
+    },
+    
+    isActive: { label: 'Active', getValue: (user) => user.is_active ? 'Yes' : 'No' },
+    isVerified: { label: 'Verified', getValue: (user) => user.is_verified ? 'Yes' : 'No' },
+    
+    joinedOrganization: { 
+      label: 'Joined Organization', 
+      getValue: (user) => user.organizations?.[0]?.joined_at ? new Date(user.organizations[0].joined_at).toLocaleDateString() : '' 
+    },
+    accountCreated: { 
+      label: 'Account Created', 
+      getValue: (user) => user.created_at ? new Date(user.created_at).toLocaleDateString() : '' 
+    }
+  });
+
+  const exportToExcel = async () => {
+    try {
+      // Filter users based on export filters
+      let filteredUsers = [...allUsers];
+      
+      // Filter by organization
+      if (exportFilters.organization !== 'all') {
+        filteredUsers = filteredUsers.filter(user => 
+          user.organizations?.some(org => org.organization_id === exportFilters.organization)
+        );
+      }
+      
+      // Filter by birth year
+      if (exportFilters.birthYear !== 'all') {
+        filteredUsers = filteredUsers.filter(user => {
+          if (!user.birthdate) return false;
+          const birthYear = new Date(user.birthdate).getFullYear();
+          return birthYear.toString() === exportFilters.birthYear;
+        });
+      }
+      
+      // Filter by graduation year
+      if (exportFilters.graduationYear !== 'all') {
+        filteredUsers = filteredUsers.filter(user => 
+          user.graduation_year && user.graduation_year.toString() === exportFilters.graduationYear
+        );
+      }
+      
+      if (filteredUsers.length === 0) {
+        alert('No users match the selected filters.');
+        return;
+      }
+      
+      // Get only selected fields
+      const fieldMapping = getFieldMapping();
+      const selectedFields = Object.keys(exportFields).filter(field => exportFields[field]);
+      
+      if (selectedFields.length === 0) {
+        alert('Please select at least one field to export.');
+        return;
+      }
+      
+      // Build headers and rows based on selected fields
+      const csvHeaders = selectedFields.map(field => fieldMapping[field].label);
+      const csvRows = filteredUsers.map(user => 
+        selectedFields.map(field => fieldMapping[field].getValue(user))
+      );
+      
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+      
+      // Create filename with filters
+      let filename = 'users-export';
+      if (exportFilters.organization !== 'all') {
+        const org = organizations.find(o => o.id === exportFilters.organization);
+        if (org) filename += `-${org.name.replace(/\s+/g, '-')}`;
+      }
+      if (exportFilters.birthYear !== 'all') {
+        filename += `-birth-${exportFilters.birthYear}`;
+      }
+      if (exportFilters.graduationYear !== 'all') {
+        filename += `-grad-${exportFilters.graduationYear}`;
+      }
+      filename += `-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setShowExportSettings(false);
+      
+    } catch (error) {
+      console.error('Error exporting users:', error);
+      alert('Failed to export users. Please try again.');
+    }
+  };
+
+  // Get unique birth years and graduation years from users
+  const getAvailableYears = () => {
+    const birthYears = new Set();
+    const gradYears = new Set();
+    
+    allUsers.forEach(user => {
+      if (user.birthdate) {
+        birthYears.add(new Date(user.birthdate).getFullYear());
+      }
+      if (user.graduation_year) {
+        gradYears.add(user.graduation_year);
+      }
+    });
+    
+    return {
+      birthYears: Array.from(birthYears).sort((a, b) => b - a),
+      graduationYears: Array.from(gradYears).sort((a, b) => b - a)
+    };
   };
 
   const handleViewUserDetails = (userId) => {
@@ -505,9 +701,20 @@ const SuperAdminDashboard = ({ onLogout }) => {
       {/* Users Tab Content */}
       {activeTab === 'users' && (
         <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">All Users</h3>
-            <p className="text-sm text-gray-500">Manage all users across the platform</p>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">All Users</h3>
+              <p className="text-sm text-gray-500">Manage all users across the platform</p>
+            </div>
+            <button
+              onClick={() => setShowExportSettings(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Export Users</span>
+            </button>
           </div>
           <div className="p-6">
             {allUsers.length === 0 ? (
@@ -913,6 +1120,181 @@ const SuperAdminDashboard = ({ onLogout }) => {
                   className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
                 >
                   Delete User
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Settings Modal */}
+      {showExportSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Export Users</h3>
+              <p className="text-sm text-gray-500 mt-1">Configure export filters and select fields</p>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Filters Section */}
+              <div className="border-b pb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-4">Filters</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Organization Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Organization
+                    </label>
+                    <select
+                      value={exportFilters.organization}
+                      onChange={(e) => setExportFilters({...exportFilters, organization: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Organizations</option>
+                      {organizations.map(org => (
+                        <option key={org.id} value={org.id}>{org.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Birth Year Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Birth Year
+                    </label>
+                    <select
+                      value={exportFilters.birthYear}
+                      onChange={(e) => setExportFilters({...exportFilters, birthYear: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Birth Years</option>
+                      {getAvailableYears().birthYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Graduation Year Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Graduation Year
+                    </label>
+                    <select
+                      value={exportFilters.graduationYear}
+                      onChange={(e) => setExportFilters({...exportFilters, graduationYear: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Graduation Years</option>
+                      {getAvailableYears().graduationYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fields Selection */}
+              <div>
+                <h4 className="text-md font-medium text-gray-900 mb-4">Export Fields</h4>
+                
+                {/* Basic Information */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Basic Information</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['fullName', 'firstName', 'lastName', 'email', 'username', 'phoneNumber', 'gender', 'birthDate'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Academic Information */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Academic Information</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['studentId', 'major', 'schoolYear', 'gpa', 'graduationYear', 'universityName', 'facultyName'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Location & Organization */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Location & Organization</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['city', 'country', 'organizationName', 'organizationRole'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status & Dates */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Status & Dates</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['isActive', 'isVerified', 'joinedOrganization', 'accountCreated'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowExportSettings(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Export to CSV</span>
                 </button>
               </div>
             </div>
