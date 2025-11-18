@@ -2366,7 +2366,12 @@ function LeaderboardManagement() {
                         {user.rank || index + 1}
                       </div>
                       <div>
-                        <h4 className="font-medium">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || `User ${user.user_id?.slice(0, 8)}`}</h4>
+                        <h4 className="font-medium">
+                          {user.display_name || 
+                           (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : '') ||
+                           user.username || 
+                           `User ${user.user_id?.slice(0, 8)}`}
+                        </h4>
                         <p className="text-sm text-gray-600">@{user.username || 'unknown'}</p>
                       </div>
                     </div>
