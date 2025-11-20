@@ -37,7 +37,7 @@ def fetch_user_details(user_ids, auth_token):
         }
         
         # Get user service URL from environment
-        user_service_url = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')
+        user_service_url = os.environ.get('USER_SERVICE_URL', 'http://user-service:5002')
         
         user_details = {}
         
