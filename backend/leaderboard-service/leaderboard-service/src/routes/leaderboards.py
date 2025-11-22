@@ -49,12 +49,13 @@ def fetch_user_details(user_ids, auth_token):
                 
                 if response.status_code == 200:
                     user_data = response.json().get('user', {})
+                    # Convert None values to empty strings using 'or' operator
                     user_details[user_id] = {
-                        'first_name': user_data.get('first_name', ''),
-                        'last_name': user_data.get('last_name', ''),
-                        'username': user_data.get('username', ''),
-                        'email': user_data.get('email', ''),
-                        'profile_picture_url': user_data.get('profile_picture_url', '')
+                        'first_name': user_data.get('first_name') or '',
+                        'last_name': user_data.get('last_name') or '',
+                        'username': user_data.get('username') or '',
+                        'email': user_data.get('email') or '',
+                        'profile_picture_url': user_data.get('profile_picture_url') or ''
                     }
                 else:
                     # Fallback for missing user
@@ -254,18 +255,31 @@ def get_user_leaderboard():
         leaderboard = []
         for rank, aggregate in enumerate(user_aggregates, 1):
             user_info = user_details.get(aggregate.user_id, {})
-            display_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
-            if not display_name:
-                display_name = user_info.get('username', f'User {str(aggregate.user_id)[:8]}')
+            
+            # Build display name properly handling None values
+            first_name = (user_info.get('first_name') or '').strip()
+            last_name = (user_info.get('last_name') or '').strip()
+            username = user_info.get('username') or ''
+            
+            if first_name and last_name:
+                display_name = f"{first_name} {last_name}"
+            elif first_name:
+                display_name = first_name
+            elif last_name:
+                display_name = last_name
+            elif username:
+                display_name = username
+            else:
+                display_name = f'User {str(aggregate.user_id)[:8]}'
             
             leaderboard.append({
                 'rank': rank,
                 'user_id': aggregate.user_id,
                 'display_name': display_name,
-                'first_name': user_info.get('first_name', ''),
-                'last_name': user_info.get('last_name', ''),
-                'username': user_info.get('username', ''),
-                'profile_picture_url': user_info.get('profile_picture_url', ''),
+                'first_name': first_name,
+                'last_name': last_name,
+                'username': username,
+                'profile_picture_url': user_info.get('profile_picture_url') or '',
                 'total_score': aggregate.total_score,
                 'score_count': aggregate.score_count,
                 'average_score': aggregate.average_score,
@@ -503,30 +517,6 @@ def get_group_rank(group_id):
             'average_score': group_aggregate.average_score,
             'total_participants': total_participants,
             'category': category
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@leaderboards_bp.route('/categories', methods=['GET'])
-def get_categories():
-    """Get all scoring categories for organization"""
-    try:
-        user_payload, error, status_code = verify_token_and_get_user()
-        if error:
-            return jsonify(error), status_code
-        
-        organization_id = user_payload['organization_id']
-        
-        # Get distinct categories
-        categories = db.session.query(ScoreAggregate.category).filter_by(
-            organization_id=organization_id
-        ).distinct().all()
-        
-        category_list = [cat[0] for cat in categories]
-        
-        return jsonify({
-            'categories': category_list
         }), 200
         
     except Exception as e:
