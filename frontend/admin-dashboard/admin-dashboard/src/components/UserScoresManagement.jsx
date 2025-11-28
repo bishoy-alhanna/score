@@ -98,7 +98,7 @@ export default function UserScoresManagement() {
   const fetchUserScores = async (userId) => {
     setLoading(true)
     try {
-      const response = await api.get(`/scores/user/${userId}`)
+      const response = await api.get(`/scores?user_id=${userId}`)
       setUserScores(response.data.scores || [])
     } catch (error) {
       console.error('Failed to fetch user scores:', error)
