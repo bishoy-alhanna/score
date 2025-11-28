@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import axios from 'axios'
-import { useAuth } from '../App'
+import { useAuth, api } from '../App'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,24 +42,6 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
-
-// Create API instance
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-const api = axios.create({
-  baseURL: `${API_URL}/api`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
-
-// Add auth token to all requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
 
 export default function UserScoresManagement() {
   const { t } = useTranslation()
