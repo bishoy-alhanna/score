@@ -37,6 +37,7 @@ const resources = {
       navigation: {
         dashboard: "Dashboard",
         users: "Users",
+        userScores: "User Scores",
         groups: "Groups",
         leaderboards: "Leaderboards",
         analytics: "Analytics",
@@ -45,6 +46,7 @@ const resources = {
         home: "Home",
         joinRequests: "Join Requests",
         scoring: "Scoring",
+        scores: "Scores",
         qrScanner: "QR Scanner"
       },
       sections: {
@@ -108,6 +110,26 @@ const resources = {
         topGroupsRanked: "Top groups ranked by total score",
         acrossAllCategories: "across all categories",
         inCategory: "in the"
+      },
+      scores: {
+        title: "Score Management",
+        selectUser: "Select a user to view and manage their scores",
+        selectUserFirst: "Select a user to view scores",
+        selectUserPrompt: "Please select a user from the list to view and manage their scores",
+        noScores: "No scores found for this user",
+        addScore: "Add Score",
+        addFirstScore: "Add First Score",
+        editScore: "Edit Score",
+        deleteScore: "Delete Score",
+        confirmDelete: "Are you sure you want to delete this score?",
+        value: "Score Value",
+        category: "Category",
+        date: "Date",
+        description: "Description",
+        addScoreDescription: "Add a new score for this user",
+        editScoreDescription: "Update the score details below",
+        selectCategory: "Select category",
+        descriptionPlaceholder: "Enter description..."
       },
       auth: {
         login: "Login",
@@ -253,6 +275,7 @@ const resources = {
       navigation: {
         dashboard: "لوحة التحكم",
         users: "المستخدمون",
+        userScores: "نقاط المستخدمين",
         groups: "المجموعات",
         leaderboards: "قوائم المتصدرين",
         analytics: "التحليلات",
@@ -261,6 +284,7 @@ const resources = {
         home: "الرئيسية",
         joinRequests: "طلبات الانضمام",
         scoring: "النقاط",
+        scores: "النقاط",
         qrScanner: "ماسح الرمز المربع"
       },
       sections: {
@@ -324,6 +348,26 @@ const resources = {
         topGroupsRanked: "أفضل المجموعات مرتبة حسب النقاط الإجمالية",
         acrossAllCategories: "عبر جميع الفئات",
         inCategory: "في فئة"
+      },
+      scores: {
+        title: "إدارة النقاط",
+        selectUser: "اختر مستخدمًا لعرض وإدارة نقاطه",
+        selectUserFirst: "اختر مستخدمًا لعرض النقاط",
+        selectUserPrompt: "يرجى اختيار مستخدم من القائمة لعرض وإدارة نقاطه",
+        noScores: "لا توجد نقاط لهذا المستخدم",
+        addScore: "إضافة نقاط",
+        addFirstScore: "إضافة أول نقاط",
+        editScore: "تعديل النقاط",
+        deleteScore: "حذف النقاط",
+        confirmDelete: "هل أنت متأكد من حذف هذه النقاط؟",
+        value: "قيمة النقاط",
+        category: "الفئة",
+        date: "التاريخ",
+        description: "الوصف",
+        addScoreDescription: "إضافة نقاط جديدة لهذا المستخدم",
+        editScoreDescription: "تحديث تفاصيل النقاط أدناه",
+        selectCategory: "اختر الفئة",
+        descriptionPlaceholder: "أدخل الوصف..."
       },
       auth: {
         login: "تسجيل الدخول",

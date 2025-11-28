@@ -23,6 +23,7 @@ import SuperAdminDashboard from '@/components/SuperAdminDashboard'
 import AdminLogin from '@/components/AdminLogin'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import TranslationWrapper from '@/components/TranslationWrapper'
+import UserScoresManagement from '@/components/UserScoresManagement'
 import { useTranslation } from 'react-i18next'
 import './i18n'
 import './rtl.css'
@@ -565,9 +566,10 @@ function AppContent() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="join-requests" className="w-full">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="join-requests">{t('navigation.joinRequests')}</TabsTrigger>
                 <TabsTrigger value="users">{t('navigation.users')}</TabsTrigger>
+                <TabsTrigger value="user-scores">{t('navigation.userScores')}</TabsTrigger>
                 <TabsTrigger value="groups">{t('navigation.groups')}</TabsTrigger>
                 <TabsTrigger value="scoring">{t('navigation.scoring')}</TabsTrigger>
                 <TabsTrigger value="leaderboard">{t('navigation.leaderboards')}</TabsTrigger>
@@ -580,6 +582,10 @@ function AppContent() {
               
               <TabsContent value="users" className="space-y-4">
                 <UsersManagement />
+              </TabsContent>
+              
+              <TabsContent value="user-scores" className="space-y-4">
+                <UserScoresManagement />
               </TabsContent>
               
               <TabsContent value="groups" className="space-y-4">
