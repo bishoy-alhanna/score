@@ -1943,6 +1943,9 @@ function LeaderboardManagement() {
   const [activeTab, setActiveTab] = useState('users')
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false)
   
   // User Profiles Management State
   const [userProfiles, setUserProfiles] = useState([])
@@ -2026,7 +2029,7 @@ function LeaderboardManagement() {
     if (currentOrganization?.organization_id && selectedCategory) {
       fetchLeaderboards()
     }
-  }, [selectedCategory])
+  }, [selectedCategory, startDate, endDate, dateFilterEnabled])
 
   // Fetch user profiles when tab is active or dependencies change
   useEffect(() => {
@@ -2054,9 +2057,23 @@ function LeaderboardManagement() {
   const fetchLeaderboards = async () => {
     try {
       setLoading(true)
+      
+      // Build query parameters
+      let queryParams = `organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`
+      
+      // Add date range if enabled and dates are provided
+      if (dateFilterEnabled) {
+        if (startDate) {
+          queryParams += `&start_date=${startDate}`
+        }
+        if (endDate) {
+          queryParams += `&end_date=${endDate}`
+        }
+      }
+      
       const [usersResponse, groupsResponse] = await Promise.all([
-        api.get(`/leaderboards/users?organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`),
-        api.get(`/leaderboards/groups?organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`)
+        api.get(`/leaderboards/users?${queryParams}`),
+        api.get(`/leaderboards/groups?${queryParams}`)
       ])
       
       setUserLeaderboard(usersResponse.data.leaderboard || [])
@@ -2209,7 +2226,7 @@ function LeaderboardManagement() {
           <TrendingUp className="h-5 w-5" />
           {t('sections.leaderboards')}
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <label htmlFor="category-select" className="text-sm font-medium">{t('leaderboards.category')}:</label>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -2225,6 +2242,44 @@ function LeaderboardManagement() {
               </SelectContent>
             </Select>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="date-filter" 
+              checked={dateFilterEnabled} 
+              onCheckedChange={setDateFilterEnabled}
+            />
+            <label htmlFor="date-filter" className="text-sm font-medium cursor-pointer">
+              Filter by Date
+            </label>
+          </div>
+          
+          {dateFilterEnabled && (
+            <>
+              <div className="flex items-center gap-2">
+                <label htmlFor="start-date" className="text-sm font-medium">From:</label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="end-date" className="text-sm font-medium">To:</label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+            </>
+          )}
+          
           <Button onClick={fetchLeaderboards} variant="outline">
             {t('common.refresh')}
           </Button>
