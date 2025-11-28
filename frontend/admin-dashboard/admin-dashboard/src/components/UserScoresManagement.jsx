@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import axios from 'axios'
+import { useAuth } from '../App'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,6 +64,7 @@ api.interceptors.request.use((config) => {
 
 export default function UserScoresManagement() {
   const { t } = useTranslation()
+  const { currentOrganization } = useAuth()
   const [users, setUsers] = useState([])
   const [selectedUser, setSelectedUser] = useState(null)
   const [userScores, setUserScores] = useState([])
@@ -80,9 +82,11 @@ export default function UserScoresManagement() {
   })
 
   useEffect(() => {
-    fetchUsers()
-    fetchCategories()
-  }, [])
+    if (currentOrganization) {
+      fetchUsers()
+      fetchCategories()
+    }
+  }, [currentOrganization])
 
   useEffect(() => {
     if (selectedUser) {
@@ -91,8 +95,10 @@ export default function UserScoresManagement() {
   }, [selectedUser])
 
   const fetchUsers = async () => {
+    if (!currentOrganization) return
+    
     try {
-      const response = await api.get('/users')
+      const response = await api.get(`/auth/organizations/${currentOrganization.organization_id}/users`)
       setUsers(response.data.users || [])
     } catch (error) {
       console.error('Failed to fetch users:', error)

@@ -49,6 +49,12 @@ api.interceptors.request.use((config) => {
 // Auth context
 const AuthContext = React.createContext()
 
+export function useAuth() {
+  return React.useContext(AuthContext)
+}
+
+export { AuthContext }
+
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [currentOrganization, setCurrentOrganization] = useState(null)
@@ -168,10 +174,6 @@ function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-function useAuth() {
-  return React.useContext(AuthContext)
 }
 
 // Organization selection/creation component
