@@ -3,7 +3,8 @@ import jwt
 import json
 import requests
 import sys
-from src.models.database import db, ScoreAggregate
+from datetime import datetime
+from src.models.database import db, ScoreAggregate, Score
 import os
 
 leaderboards_bp = Blueprint('leaderboards', __name__)
@@ -188,7 +189,7 @@ def get_cached_leaderboard(key):
 
 @leaderboards_bp.route('/users', methods=['GET'])
 def get_user_leaderboard():
-    """Get user leaderboard for organization"""
+    """Get user leaderboard for organization with optional date range filtering"""
     try:
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
@@ -198,38 +199,53 @@ def get_user_leaderboard():
         category = request.args.get('category', 'general')
         limit = int(request.args.get('limit', 50))
         
-        # Check cache first
-        cache_key = get_cache_key(organization_id, 'users', category)
-        cached_data = get_cached_leaderboard(cache_key)
-        if cached_data:
-            # Apply limit to cached data
-            cached_data['leaderboard'] = cached_data['leaderboard'][:limit]
-            return jsonify(cached_data), 200
+        # Get date range parameters
+        start_date = request.args.get('start_date')  # Format: YYYY-MM-DD
+        end_date = request.args.get('end_date')      # Format: YYYY-MM-DD
         
-        # Query database
-        if category == 'all':
-            # Aggregate scores across all categories for each user
+        # If date range is provided, query Score table directly
+        if start_date or end_date:
             from sqlalchemy import func
-            user_aggregates_query = db.session.query(
-                ScoreAggregate.user_id,
-                func.sum(ScoreAggregate.total_score).label('total_score'),
-                func.sum(ScoreAggregate.score_count).label('score_count'),
-                func.avg(ScoreAggregate.average_score).label('average_score'),
-                func.max(ScoreAggregate.last_updated).label('last_updated')
+            
+            # Parse dates
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
+            # Add one day to end_date to include the entire day
+            if end_dt:
+                from datetime import timedelta
+                end_dt = end_dt + timedelta(days=1)
+            
+            # Build query for scores within date range
+            score_query = db.session.query(
+                Score.user_id,
+                func.sum(Score.score_value).label('total_score'),
+                func.count(Score.id).label('score_count'),
+                func.avg(Score.score_value).label('average_score'),
+                func.max(Score.created_at).label('last_updated')
             ).filter_by(
                 organization_id=organization_id
             ).filter(
-                ScoreAggregate.user_id.isnot(None)
-            ).group_by(
-                ScoreAggregate.user_id
-            ).order_by(
-                func.sum(ScoreAggregate.total_score).desc()
+                Score.user_id.isnot(None)
+            )
+            
+            # Apply date filters
+            if start_dt:
+                score_query = score_query.filter(Score.created_at >= start_dt)
+            if end_dt:
+                score_query = score_query.filter(Score.created_at < end_dt)
+            
+            # Apply category filter
+            if category != 'all':
+                score_query = score_query.filter_by(category=category)
+            
+            # Group by user and order by total score
+            score_query = score_query.group_by(Score.user_id).order_by(
+                func.sum(Score.score_value).desc()
             ).limit(limit)
             
-            # Convert to list of objects with proper attributes
+            # Convert to list of objects
             user_aggregates = []
-            for row in user_aggregates_query.all():
-                # Create a mock aggregate object
+            for row in score_query.all():
                 class MockAggregate:
                     def __init__(self, user_id, total_score, score_count, average_score, last_updated):
                         self.user_id = user_id
@@ -239,18 +255,64 @@ def get_user_leaderboard():
                         self.last_updated = last_updated
                 
                 user_aggregates.append(MockAggregate(
-                    row.user_id, row.total_score, row.score_count, 
+                    row.user_id, row.total_score, row.score_count,
                     row.average_score, row.last_updated
                 ))
         else:
-            user_aggregates = ScoreAggregate.query.filter_by(
-                organization_id=organization_id,
-                category=category
-        ).filter(
-            ScoreAggregate.user_id.isnot(None)
-        ).order_by(
-            ScoreAggregate.total_score.desc()
-        ).limit(limit).all()
+            # No date range - use cache and aggregates as before
+            # Check cache first
+            cache_key = get_cache_key(organization_id, 'users', category)
+            cached_data = get_cached_leaderboard(cache_key)
+            if cached_data:
+                # Apply limit to cached data
+                cached_data['leaderboard'] = cached_data['leaderboard'][:limit]
+                return jsonify(cached_data), 200
+            
+            # Query database
+            if category == 'all':
+                # Aggregate scores across all categories for each user
+                from sqlalchemy import func
+                user_aggregates_query = db.session.query(
+                    ScoreAggregate.user_id,
+                    func.sum(ScoreAggregate.total_score).label('total_score'),
+                    func.sum(ScoreAggregate.score_count).label('score_count'),
+                    func.avg(ScoreAggregate.average_score).label('average_score'),
+                    func.max(ScoreAggregate.last_updated).label('last_updated')
+                ).filter_by(
+                    organization_id=organization_id
+                ).filter(
+                    ScoreAggregate.user_id.isnot(None)
+                ).group_by(
+                    ScoreAggregate.user_id
+                ).order_by(
+                    func.sum(ScoreAggregate.total_score).desc()
+                ).limit(limit)
+                
+                # Convert to list of objects with proper attributes
+                user_aggregates = []
+                for row in user_aggregates_query.all():
+                    # Create a mock aggregate object
+                    class MockAggregate:
+                        def __init__(self, user_id, total_score, score_count, average_score, last_updated):
+                            self.user_id = user_id
+                            self.total_score = total_score or 0
+                            self.score_count = score_count or 0
+                            self.average_score = float(average_score) if average_score else 0.0
+                            self.last_updated = last_updated
+                    
+                    user_aggregates.append(MockAggregate(
+                        row.user_id, row.total_score, row.score_count, 
+                        row.average_score, row.last_updated
+                    ))
+            else:
+                user_aggregates = ScoreAggregate.query.filter_by(
+                    organization_id=organization_id,
+                    category=category
+            ).filter(
+                ScoreAggregate.user_id.isnot(None)
+            ).order_by(
+                ScoreAggregate.total_score.desc()
+            ).limit(limit).all()
         
         # Get user IDs for fetching details
         user_ids = [aggregate.user_id for aggregate in user_aggregates]
@@ -299,11 +361,15 @@ def get_user_leaderboard():
             'category': category,
             'organization_id': organization_id,
             'leaderboard': leaderboard,
-            'total_participants': len(leaderboard)
+            'total_participants': len(leaderboard),
+            'start_date': start_date if start_date else None,
+            'end_date': end_date if end_date else None,
+            'filtered_by_date': bool(start_date or end_date)
         }
         
-        # Cache the result
-        cache_leaderboard(cache_key, result)
+        # Only cache if not filtered by date
+        if not (start_date or end_date):
+            cache_leaderboard(cache_key, result)
         
         return jsonify(result), 200
         
@@ -312,7 +378,7 @@ def get_user_leaderboard():
 
 @leaderboards_bp.route('/groups', methods=['GET'])
 def get_group_leaderboard():
-    """Get group leaderboard for organization"""
+    """Get group leaderboard for organization with optional date range filtering"""
     print("DEBUG: Group leaderboard endpoint called!")
     sys.stdout.flush()
     
@@ -325,41 +391,55 @@ def get_group_leaderboard():
         category = request.args.get('category', 'general')
         limit = int(request.args.get('limit', 50))
         
-        print(f"DEBUG: Getting group leaderboard for org: {organization_id}, category: {category}")
+        # Get date range parameters
+        start_date = request.args.get('start_date')  # Format: YYYY-MM-DD
+        end_date = request.args.get('end_date')      # Format: YYYY-MM-DD
         
-        # Check cache first
-        cache_key = get_cache_key(organization_id, 'groups', category)
-        cached_data = get_cached_leaderboard(cache_key)
-        if cached_data:
-            print("DEBUG: Returning cached group leaderboard data")
-            # Apply limit to cached data
-            cached_data['leaderboard'] = cached_data['leaderboard'][:limit]
-            return jsonify(cached_data), 200
+        print(f"DEBUG: Getting group leaderboard for org: {organization_id}, category: {category}, dates: {start_date} to {end_date}")
         
-        # Query database
-        if category == 'all':
-            # Aggregate scores across all categories for each group
+        # If date range is provided, query Score table directly
+        if start_date or end_date:
             from sqlalchemy import func
-            group_aggregates_query = db.session.query(
-                ScoreAggregate.group_id,
-                func.sum(ScoreAggregate.total_score).label('total_score'),
-                func.sum(ScoreAggregate.score_count).label('score_count'),
-                func.avg(ScoreAggregate.average_score).label('average_score'),
-                func.max(ScoreAggregate.last_updated).label('last_updated')
+            
+            # Parse dates
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
+            # Add one day to end_date to include the entire day
+            if end_dt:
+                from datetime import timedelta
+                end_dt = end_dt + timedelta(days=1)
+            
+            # Build query for scores within date range
+            score_query = db.session.query(
+                Score.group_id,
+                func.sum(Score.score_value).label('total_score'),
+                func.count(Score.id).label('score_count'),
+                func.avg(Score.score_value).label('average_score'),
+                func.max(Score.created_at).label('last_updated')
             ).filter_by(
                 organization_id=organization_id
             ).filter(
-                ScoreAggregate.group_id.isnot(None)
-            ).group_by(
-                ScoreAggregate.group_id
-            ).order_by(
-                func.sum(ScoreAggregate.total_score).desc()
+                Score.group_id.isnot(None)
+            )
+            
+            # Apply date filters
+            if start_dt:
+                score_query = score_query.filter(Score.created_at >= start_dt)
+            if end_dt:
+                score_query = score_query.filter(Score.created_at < end_dt)
+            
+            # Apply category filter
+            if category != 'all':
+                score_query = score_query.filter_by(category=category)
+            
+            # Group by group_id and order by total score
+            score_query = score_query.group_by(Score.group_id).order_by(
+                func.sum(Score.score_value).desc()
             ).limit(limit)
             
-            # Convert to list of objects with proper attributes
+            # Convert to list of objects
             group_aggregates = []
-            for row in group_aggregates_query.all():
-                # Create a mock aggregate object
+            for row in score_query.all():
                 class MockAggregate:
                     def __init__(self, group_id, total_score, score_count, average_score, last_updated):
                         self.group_id = group_id
@@ -369,18 +449,65 @@ def get_group_leaderboard():
                         self.last_updated = last_updated
                 
                 group_aggregates.append(MockAggregate(
-                    row.group_id, row.total_score, row.score_count, 
+                    row.group_id, row.total_score, row.score_count,
                     row.average_score, row.last_updated
                 ))
         else:
-            group_aggregates = ScoreAggregate.query.filter_by(
-                organization_id=organization_id,
-                category=category
-            ).filter(
-                ScoreAggregate.group_id.isnot(None)
-            ).order_by(
-                ScoreAggregate.total_score.desc()
-            ).limit(limit).all()
+            # No date range - use cache and aggregates as before
+            # Check cache first
+            cache_key = get_cache_key(organization_id, 'groups', category)
+            cached_data = get_cached_leaderboard(cache_key)
+            if cached_data:
+                print("DEBUG: Returning cached group leaderboard data")
+                # Apply limit to cached data
+                cached_data['leaderboard'] = cached_data['leaderboard'][:limit]
+                return jsonify(cached_data), 200
+            
+            # Query database
+            if category == 'all':
+                # Aggregate scores across all categories for each group
+                from sqlalchemy import func
+                group_aggregates_query = db.session.query(
+                    ScoreAggregate.group_id,
+                    func.sum(ScoreAggregate.total_score).label('total_score'),
+                    func.sum(ScoreAggregate.score_count).label('score_count'),
+                    func.avg(ScoreAggregate.average_score).label('average_score'),
+                    func.max(ScoreAggregate.last_updated).label('last_updated')
+                ).filter_by(
+                    organization_id=organization_id
+                ).filter(
+                    ScoreAggregate.group_id.isnot(None)
+                ).group_by(
+                    ScoreAggregate.group_id
+                ).order_by(
+                    func.sum(ScoreAggregate.total_score).desc()
+                ).limit(limit)
+                
+                # Convert to list of objects with proper attributes
+                group_aggregates = []
+                for row in group_aggregates_query.all():
+                    # Create a mock aggregate object
+                    class MockAggregate:
+                        def __init__(self, group_id, total_score, score_count, average_score, last_updated):
+                            self.group_id = group_id
+                            self.total_score = total_score or 0
+                            self.score_count = score_count or 0
+                            self.average_score = float(average_score) if average_score else 0.0
+                            self.last_updated = last_updated
+                    
+                    group_aggregates.append(MockAggregate(
+                        row.group_id, row.total_score, row.score_count, 
+                        row.average_score, row.last_updated
+                    ))
+            else:
+                group_aggregates = ScoreAggregate.query.filter_by(
+                    organization_id=organization_id,
+                    category=category
+                ).filter(
+                    ScoreAggregate.group_id.isnot(None)
+                ).order_by(
+                    ScoreAggregate.total_score.desc()
+                ).limit(limit).all()
         
         print(f"DEBUG: Found {len(group_aggregates)} group aggregates")
         
@@ -417,11 +544,15 @@ def get_group_leaderboard():
             'category': category,
             'organization_id': organization_id,
             'leaderboard': leaderboard,
-            'total_participants': len(leaderboard)
+            'total_participants': len(leaderboard),
+            'start_date': start_date if start_date else None,
+            'end_date': end_date if end_date else None,
+            'filtered_by_date': bool(start_date or end_date)
         }
         
-        # Cache the result
-        cache_leaderboard(cache_key, result)
+        # Only cache if not filtered by date
+        if not (start_date or end_date):
+            cache_leaderboard(cache_key, result)
         
         return jsonify(result), 200
         
