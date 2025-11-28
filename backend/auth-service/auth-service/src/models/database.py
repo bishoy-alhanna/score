@@ -14,6 +14,11 @@ class Organization(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Global organization settings for score/leaderboard filtering
+    filter_start_date = db.Column(db.Date, nullable=True)  # Global start date for filtering
+    filter_end_date = db.Column(db.Date, nullable=True)    # Global end date for filtering
+    filter_enabled = db.Column(db.Boolean, default=False)  # Whether date filtering is enabled
+    
     # Relationships
     users = db.relationship('User', backref='organization', lazy=True, cascade='all, delete-orphan')
     
@@ -24,7 +29,10 @@ class Organization(db.Model):
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'user_count': len(self.users) if self.users else 0
+            'user_count': len(self.users) if self.users else 0,
+            'filter_start_date': self.filter_start_date.isoformat() if self.filter_start_date else None,
+            'filter_end_date': self.filter_end_date.isoformat() if self.filter_end_date else None,
+            'filter_enabled': self.filter_enabled
         }
 
 class User(db.Model):

@@ -36,6 +36,15 @@ class Score(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+class UserOrganization(db.Model):
+    __tablename__ = 'user_organizations'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), nullable=False)
+    organization_id = db.Column(db.String(36), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class ScoreAggregate(db.Model):
     __tablename__ = 'score_aggregates'
     

@@ -2018,12 +2018,51 @@ function LeaderboardManagement() {
   
   const { currentOrganization } = useAuth()
 
+  // Load organization filter settings on mount
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchCategories()
-      fetchLeaderboards()
+      loadOrganizationFilterSettings()
     }
   }, [currentOrganization])
+
+  const loadOrganizationFilterSettings = async () => {
+    try {
+      const response = await api.get(`/organizations`)
+      const org = response.data
+      
+      if (org.filter_enabled) {
+        setDateFilterEnabled(true)
+        setStartDate(org.filter_start_date || '')
+        setEndDate(org.filter_end_date || '')
+      }
+    } catch (error) {
+      console.error('Failed to load organization filter settings:', error)
+    }
+  }
+
+  const saveOrganizationFilterSettings = async () => {
+    try {
+      const payload = {
+        filter_enabled: dateFilterEnabled,
+        filter_start_date: dateFilterEnabled ? startDate : null,
+        filter_end_date: dateFilterEnabled ? endDate : null
+      }
+      
+      await api.put('/organizations/filter-settings', payload)
+      
+      alert('Date filter settings saved successfully!')
+    } catch (error) {
+      console.error('Failed to save organization filter settings:', error)
+      alert('Failed to save date filter settings. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id && categories.length > 0) {
+      fetchLeaderboards()
+    }
+  }, [currentOrganization, categories])
 
   useEffect(() => {
     if (currentOrganization?.organization_id && selectedCategory) {
@@ -2277,6 +2316,10 @@ function LeaderboardManagement() {
                   className="w-[150px]"
                 />
               </div>
+              
+              <Button onClick={saveOrganizationFilterSettings} variant="default">
+                Save as Default
+              </Button>
             </>
           )}
           

@@ -4,10 +4,53 @@ import json
 import requests
 import sys
 from datetime import datetime
-from src.models.database import db, ScoreAggregate, Score
+from src.models.database import db, ScoreAggregate, Score, UserOrganization
 import os
 
 leaderboards_bp = Blueprint('leaderboards', __name__)
+
+def fetch_organization_settings(organization_id, auth_token):
+    """Fetch organization settings from auth service"""
+    try:
+        print(f"DEBUG: Fetching organization settings for org: {organization_id}")
+        auth_service_url = os.environ.get('AUTH_SERVICE_URL', 'http://auth-service:5000')
+        headers = {
+            'Authorization': f'Bearer {auth_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        print(f"DEBUG: Calling {auth_service_url}/api/organizations")
+        response = requests.get(
+            f'{auth_service_url}/api/organizations',
+            headers=headers,
+            timeout=5
+        )
+        
+        print(f"DEBUG: Organization settings response status: {response.status_code}")
+        print(f"DEBUG: Organization settings response: {response.text[:500]}")
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            # The response is wrapped in an "organization" key
+            org_data = response_data.get('organization', response_data)
+            settings = {
+                'filter_enabled': org_data.get('filter_enabled', False),
+                'filter_start_date': org_data.get('filter_start_date'),
+                'filter_end_date': org_data.get('filter_end_date')
+            }
+            print(f"DEBUG: Organization filter settings: {settings}")
+            return settings
+    except Exception as e:
+        print(f"ERROR: Error fetching organization settings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    
+    print("DEBUG: Returning default filter settings (disabled)")
+    return {
+        'filter_enabled': False,
+        'filter_start_date': None,
+        'filter_end_date': None
+    }
 
 def verify_token_and_get_user():
     """Helper function to verify JWT token and return user info"""
@@ -196,6 +239,9 @@ def get_user_leaderboard():
             return jsonify(error), status_code
         
         organization_id = user_payload['organization_id']
+        print(f"DEBUG [get_user_leaderboard]: Using organization_id from JWT: {organization_id}")
+        sys.stdout.flush()
+        
         category = request.args.get('category', 'general')
         limit = int(request.args.get('limit', 50))
         
@@ -203,7 +249,27 @@ def get_user_leaderboard():
         start_date = request.args.get('start_date')  # Format: YYYY-MM-DD
         end_date = request.args.get('end_date')      # Format: YYYY-MM-DD
         
-        # If date range is provided, query Score table directly
+        print(f"DEBUG [get_user_leaderboard]: start_date={start_date}, end_date={end_date}, category={category}, limit={limit}")
+        sys.stdout.flush()
+        
+        # If no explicit dates provided, check organization filter settings
+        if not start_date and not end_date:
+            print("DEBUG: No explicit dates provided, checking organization settings...")
+            sys.stdout.flush()
+            auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+            print(f"DEBUG: Auth token extracted: {auth_token[:50]}...")
+            sys.stdout.flush()
+            org_settings = fetch_organization_settings(organization_id, auth_token)
+            print(f"DEBUG: Organization settings received: {org_settings}")
+            sys.stdout.flush()
+            
+            if org_settings['filter_enabled']:
+                start_date = org_settings['filter_start_date']
+                end_date = org_settings['filter_end_date']
+                print(f"DEBUG: Using organization filter dates: {start_date} to {end_date}")
+                sys.stdout.flush()
+        
+        # If date range is provided (either explicitly or from org settings), query Score table directly
         if start_date or end_date:
             from sqlalchemy import func
             
@@ -228,11 +294,26 @@ def get_user_leaderboard():
                 Score.user_id.isnot(None)
             )
             
+            # Filter to only include users who are active members of the organization
+            member_subquery = db.session.query(UserOrganization.user_id).filter_by(
+                organization_id=organization_id,
+                is_active=True
+            ).subquery()
+            score_query = score_query.filter(Score.user_id.in_(member_subquery))
+            
+            print(f"DEBUG: Querying scores for organization_id: {organization_id}")
+            print(f"DEBUG: Filtering to only show active organization members")
+            sys.stdout.flush()
+            
             # Apply date filters
             if start_dt:
                 score_query = score_query.filter(Score.created_at >= start_dt)
+                print(f"DEBUG: Applied start_date filter: >= {start_dt}")
+                sys.stdout.flush()
             if end_dt:
                 score_query = score_query.filter(Score.created_at < end_dt)
+                print(f"DEBUG: Applied end_date filter: < {end_dt}")
+                sys.stdout.flush()
             
             # Apply category filter
             if category != 'all':
@@ -242,6 +323,9 @@ def get_user_leaderboard():
             score_query = score_query.group_by(Score.user_id).order_by(
                 func.sum(Score.score_value).desc()
             ).limit(limit)
+            
+            print(f"DEBUG: Executing score query, expecting max {limit} results")
+            sys.stdout.flush()
             
             # Convert to list of objects
             user_aggregates = []
@@ -395,9 +479,18 @@ def get_group_leaderboard():
         start_date = request.args.get('start_date')  # Format: YYYY-MM-DD
         end_date = request.args.get('end_date')      # Format: YYYY-MM-DD
         
+        # If no explicit dates provided, check organization filter settings
+        if not start_date and not end_date:
+            auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+            org_settings = fetch_organization_settings(organization_id, auth_token)
+            
+            if org_settings['filter_enabled']:
+                start_date = org_settings['filter_start_date']
+                end_date = org_settings['filter_end_date']
+        
         print(f"DEBUG: Getting group leaderboard for org: {organization_id}, category: {category}, dates: {start_date} to {end_date}")
         
-        # If date range is provided, query Score table directly
+        # If date range is provided (either explicitly or from org settings), query Score table directly
         if start_date or end_date:
             from sqlalchemy import func
             

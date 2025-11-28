@@ -150,6 +150,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-your-redis-password}@redis:6379/0
       - USER_SERVICE_URL=http://user-service:5002
       - GROUP_SERVICE_URL=http://group-service:5003
+      - AUTH_SERVICE_URL=http://auth-service:5001
     depends_on:
       postgres:
         condition: service_healthy
