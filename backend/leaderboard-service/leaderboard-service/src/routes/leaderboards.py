@@ -26,6 +26,7 @@ def verify_token_and_get_user():
 
 def fetch_user_details(user_ids, auth_token):
     """Fetch user details from user service"""
+    print(f"DEBUG: fetch_user_details called with user_ids: {user_ids}")
     if not user_ids:
         return {}
     
@@ -38,6 +39,7 @@ def fetch_user_details(user_ids, auth_token):
         
         # Get user service URL from environment
         user_service_url = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')
+        print(f"DEBUG: User service URL: {user_service_url}")
         
         user_details = {}
         
@@ -45,7 +47,10 @@ def fetch_user_details(user_ids, auth_token):
         for user_id in user_ids:
             try:
                 url = f'{user_service_url}/api/users/{user_id}'
+                print(f"DEBUG: Fetching user from: {url}")
                 response = requests.get(url, headers=headers, timeout=5)
+                print(f"DEBUG: User service response status: {response.status_code}")
+                print(f"DEBUG: User service response body: {response.text[:500]}")
                 
                 if response.status_code == 200:
                     user_data = response.json().get('user', {})
@@ -57,7 +62,9 @@ def fetch_user_details(user_ids, auth_token):
                         'email': user_data.get('email') or '',
                         'profile_picture_url': user_data.get('profile_picture_url') or ''
                     }
+                    print(f"DEBUG: Fetched user details for {user_id}: {user_details[user_id]}")
                 else:
+                    print(f"DEBUG: User fetch failed with status {response.status_code}")
                     # Fallback for missing user
                     user_details[user_id] = {
                         'first_name': '',
@@ -67,6 +74,7 @@ def fetch_user_details(user_ids, auth_token):
                         'profile_picture_url': ''
                     }
             except Exception as e:
+                print(f"DEBUG: Error fetching user {user_id}: {str(e)}")
                 # Fallback for API errors
                 user_details[user_id] = {
                     'first_name': '',
