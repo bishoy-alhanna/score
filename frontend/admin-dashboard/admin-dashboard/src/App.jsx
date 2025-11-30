@@ -23,6 +23,7 @@ import SuperAdminDashboard from '@/components/SuperAdminDashboard'
 import AdminLogin from '@/components/AdminLogin'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import TranslationWrapper from '@/components/TranslationWrapper'
+import UserScoresManagement from '@/components/UserScoresManagement'
 import { useTranslation } from 'react-i18next'
 import './i18n'
 import './rtl.css'
@@ -32,7 +33,7 @@ import './App.css'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // API service
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_BASE_URL,
 })
 
@@ -47,6 +48,12 @@ api.interceptors.request.use((config) => {
 
 // Auth context
 const AuthContext = React.createContext()
+
+export function useAuth() {
+  return React.useContext(AuthContext)
+}
+
+export { AuthContext }
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -167,10 +174,6 @@ function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-function useAuth() {
-  return React.useContext(AuthContext)
 }
 
 // Organization selection/creation component
@@ -565,9 +568,10 @@ function AppContent() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="join-requests" className="w-full">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="join-requests">{t('navigation.joinRequests')}</TabsTrigger>
                 <TabsTrigger value="users">{t('navigation.users')}</TabsTrigger>
+                <TabsTrigger value="user-scores">{t('navigation.userScores')}</TabsTrigger>
                 <TabsTrigger value="groups">{t('navigation.groups')}</TabsTrigger>
                 <TabsTrigger value="scoring">{t('navigation.scoring')}</TabsTrigger>
                 <TabsTrigger value="leaderboard">{t('navigation.leaderboards')}</TabsTrigger>
@@ -580,6 +584,10 @@ function AppContent() {
               
               <TabsContent value="users" className="space-y-4">
                 <UsersManagement />
+              </TabsContent>
+              
+              <TabsContent value="user-scores" className="space-y-4">
+                <UserScoresManagement />
               </TabsContent>
               
               <TabsContent value="groups" className="space-y-4">
@@ -2050,6 +2058,9 @@ function LeaderboardManagement() {
   const [activeTab, setActiveTab] = useState('users')
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false)
   
   // User Profiles Management State
   const [userProfiles, setUserProfiles] = useState([])
@@ -2122,18 +2133,57 @@ function LeaderboardManagement() {
   
   const { currentOrganization } = useAuth()
 
+  // Load organization filter settings on mount
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchCategories()
-      fetchLeaderboards()
+      loadOrganizationFilterSettings()
     }
   }, [currentOrganization])
+
+  const loadOrganizationFilterSettings = async () => {
+    try {
+      const response = await api.get(`/organizations`)
+      const org = response.data
+      
+      if (org.filter_enabled) {
+        setDateFilterEnabled(true)
+        setStartDate(org.filter_start_date || '')
+        setEndDate(org.filter_end_date || '')
+      }
+    } catch (error) {
+      console.error('Failed to load organization filter settings:', error)
+    }
+  }
+
+  const saveOrganizationFilterSettings = async () => {
+    try {
+      const payload = {
+        filter_enabled: dateFilterEnabled,
+        filter_start_date: dateFilterEnabled ? startDate : null,
+        filter_end_date: dateFilterEnabled ? endDate : null
+      }
+      
+      await api.put('/organizations/filter-settings', payload)
+      
+      alert('Date filter settings saved successfully!')
+    } catch (error) {
+      console.error('Failed to save organization filter settings:', error)
+      alert('Failed to save date filter settings. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id && categories.length > 0) {
+      fetchLeaderboards()
+    }
+  }, [currentOrganization, categories])
 
   useEffect(() => {
     if (currentOrganization?.organization_id && selectedCategory) {
       fetchLeaderboards()
     }
-  }, [selectedCategory])
+  }, [selectedCategory, startDate, endDate, dateFilterEnabled])
 
   // Fetch user profiles when tab is active or dependencies change
   useEffect(() => {
@@ -2161,9 +2211,23 @@ function LeaderboardManagement() {
   const fetchLeaderboards = async () => {
     try {
       setLoading(true)
+      
+      // Build query parameters
+      let queryParams = `organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`
+      
+      // Add date range if enabled and dates are provided
+      if (dateFilterEnabled) {
+        if (startDate) {
+          queryParams += `&start_date=${startDate}`
+        }
+        if (endDate) {
+          queryParams += `&end_date=${endDate}`
+        }
+      }
+      
       const [usersResponse, groupsResponse] = await Promise.all([
-        api.get(`/leaderboards/users?organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`),
-        api.get(`/leaderboards/groups?organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`)
+        api.get(`/leaderboards/users?${queryParams}`),
+        api.get(`/leaderboards/groups?${queryParams}`)
       ])
       
       setUserLeaderboard(usersResponse.data.leaderboard || [])
@@ -2316,7 +2380,7 @@ function LeaderboardManagement() {
           <TrendingUp className="h-5 w-5" />
           {t('sections.leaderboards')}
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <label htmlFor="category-select" className="text-sm font-medium">{t('leaderboards.category')}:</label>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -2332,6 +2396,48 @@ function LeaderboardManagement() {
               </SelectContent>
             </Select>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="date-filter" 
+              checked={dateFilterEnabled} 
+              onCheckedChange={setDateFilterEnabled}
+            />
+            <label htmlFor="date-filter" className="text-sm font-medium cursor-pointer">
+              Filter by Date
+            </label>
+          </div>
+          
+          {dateFilterEnabled && (
+            <>
+              <div className="flex items-center gap-2">
+                <label htmlFor="start-date" className="text-sm font-medium">From:</label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="end-date" className="text-sm font-medium">To:</label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              
+              <Button onClick={saveOrganizationFilterSettings} variant="default">
+                Save as Default
+              </Button>
+            </>
+          )}
+          
           <Button onClick={fetchLeaderboards} variant="outline">
             {t('common.refresh')}
           </Button>

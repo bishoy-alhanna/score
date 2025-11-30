@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import jwt
+from datetime import datetime
 from src.models.database_multi_org import db, Organization, User
 import os
 
@@ -169,4 +170,51 @@ def get_organization_stats():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@organization_bp.route('/filter-settings', methods=['PUT'])
+def update_filter_settings():
+    """Update organization global filter settings (ORG_ADMIN only)"""
+    try:
+        user, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        # Get user's current organization membership and check role
+        current_membership = user.organization_memberships[0] if user.organization_memberships else None
+        if not current_membership:
+            return jsonify({'error': 'User is not a member of any organization'}), 400
+        
+        if current_membership.role != 'ORG_ADMIN':
+            return jsonify({'error': 'Only organization admins can update filter settings'}), 403
+        
+        data = request.get_json()
+        organization = current_membership.organization
+        
+        # Update filter settings
+        if 'filter_enabled' in data:
+            organization.filter_enabled = bool(data['filter_enabled'])
+        
+        if 'filter_start_date' in data:
+            if data['filter_start_date']:
+                organization.filter_start_date = datetime.strptime(data['filter_start_date'], '%Y-%m-%d').date()
+            else:
+                organization.filter_start_date = None
+        
+        if 'filter_end_date' in data:
+            if data['filter_end_date']:
+                organization.filter_end_date = datetime.strptime(data['filter_end_date'], '%Y-%m-%d').date()
+            else:
+                organization.filter_end_date = None
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Filter settings updated successfully',
+            'organization': organization.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
