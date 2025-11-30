@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import OrganizationDetails from './OrganizationDetails';
+import { Dialog, DialogContent, DialogOverlay, DialogPortal } from './ui/dialog';
 
 const SuperAdminDashboard = ({ onLogout }) => {
   const { t } = useTranslation();
@@ -32,6 +33,51 @@ const SuperAdminDashboard = ({ onLogout }) => {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null);
+  const [imagePopup, setImagePopup] = useState({ open: false, url: '', userName: '' });
+
+  // Export Settings State
+  const [showExportSettings, setShowExportSettings] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    organization: 'all', // 'all' or specific organization_id
+    birthYear: 'all', // 'all' or specific year
+    graduationYear: 'all' // 'all' or specific year
+  });
+  const [exportFields, setExportFields] = useState({
+    // Basic Information
+    fullName: true,
+    firstName: true,
+    lastName: true,
+    email: true,
+    username: true,
+    phoneNumber: true,
+    gender: false,
+    birthDate: false,
+    
+    // Academic Information
+    studentId: false,
+    major: false,
+    schoolYear: false,
+    gpa: false,
+    graduationYear: false,
+    universityName: false,
+    facultyName: false,
+    
+    // Address Information
+    city: false,
+    country: false,
+    
+    // Organization Information
+    organizationName: true,
+    organizationRole: true,
+    
+    // Status Information
+    isActive: true,
+    isVerified: false,
+    
+    // Dates
+    joinedOrganization: true,
+    accountCreated: false
+  });
 
   // API configuration
   const api = axios.create({
@@ -202,6 +248,158 @@ const SuperAdminDashboard = ({ onLogout }) => {
       console.error('Error toggling user status:', error);
       setError(error.response?.data?.error || 'Failed to update user status');
     }
+  };
+
+  // Export functionality
+  const getFieldMapping = () => ({
+    fullName: { 
+      label: 'Full Name', 
+      getValue: (user) => `${user.first_name || ''} ${user.last_name || ''}`.trim() 
+    },
+    firstName: { label: 'First Name', getValue: (user) => user.first_name || '' },
+    lastName: { label: 'Last Name', getValue: (user) => user.last_name || '' },
+    email: { label: 'Email', getValue: (user) => user.email || '' },
+    username: { label: 'Username', getValue: (user) => user.username || '' },
+    phoneNumber: { label: 'Phone Number', getValue: (user) => user.phone_number || '' },
+    gender: { label: 'Gender', getValue: (user) => user.gender || '' },
+    birthDate: { label: 'Birth Date', getValue: (user) => user.birthdate ? new Date(user.birthdate).toLocaleDateString() : '' },
+    
+    studentId: { label: 'Student ID', getValue: (user) => user.student_id || '' },
+    major: { label: 'Major', getValue: (user) => user.major || '' },
+    schoolYear: { label: 'School Year', getValue: (user) => user.school_year || '' },
+    gpa: { label: 'GPA', getValue: (user) => user.gpa || '' },
+    graduationYear: { label: 'Graduation Year', getValue: (user) => user.graduation_year || '' },
+    universityName: { label: 'University', getValue: (user) => user.university_name || '' },
+    facultyName: { label: 'Faculty', getValue: (user) => user.faculty_name || '' },
+    
+    city: { label: 'City', getValue: (user) => user.city || '' },
+    country: { label: 'Country', getValue: (user) => user.country || '' },
+    
+    organizationName: { 
+      label: 'Organization(s)', 
+      getValue: (user) => user.organizations?.map(org => org.organization_name).join(', ') || '' 
+    },
+    organizationRole: { 
+      label: 'Role(s)', 
+      getValue: (user) => user.organizations?.map(org => org.role).join(', ') || '' 
+    },
+    
+    isActive: { label: 'Active', getValue: (user) => user.is_active ? 'Yes' : 'No' },
+    isVerified: { label: 'Verified', getValue: (user) => user.is_verified ? 'Yes' : 'No' },
+    
+    joinedOrganization: { 
+      label: 'Joined Organization', 
+      getValue: (user) => user.organizations?.[0]?.joined_at ? new Date(user.organizations[0].joined_at).toLocaleDateString() : '' 
+    },
+    accountCreated: { 
+      label: 'Account Created', 
+      getValue: (user) => user.created_at ? new Date(user.created_at).toLocaleDateString() : '' 
+    }
+  });
+
+  const exportToExcel = async () => {
+    try {
+      // Filter users based on export filters
+      let filteredUsers = [...allUsers];
+      
+      // Filter by organization
+      if (exportFilters.organization !== 'all') {
+        filteredUsers = filteredUsers.filter(user => 
+          user.organizations?.some(org => org.organization_id === exportFilters.organization)
+        );
+      }
+      
+      // Filter by birth year
+      if (exportFilters.birthYear !== 'all') {
+        filteredUsers = filteredUsers.filter(user => {
+          if (!user.birthdate) return false;
+          const birthYear = new Date(user.birthdate).getFullYear();
+          return birthYear.toString() === exportFilters.birthYear;
+        });
+      }
+      
+      // Filter by graduation year
+      if (exportFilters.graduationYear !== 'all') {
+        filteredUsers = filteredUsers.filter(user => 
+          user.graduation_year && user.graduation_year.toString() === exportFilters.graduationYear
+        );
+      }
+      
+      if (filteredUsers.length === 0) {
+        alert('No users match the selected filters.');
+        return;
+      }
+      
+      // Get only selected fields
+      const fieldMapping = getFieldMapping();
+      const selectedFields = Object.keys(exportFields).filter(field => exportFields[field]);
+      
+      if (selectedFields.length === 0) {
+        alert('Please select at least one field to export.');
+        return;
+      }
+      
+      // Build headers and rows based on selected fields
+      const csvHeaders = selectedFields.map(field => fieldMapping[field].label);
+      const csvRows = filteredUsers.map(user => 
+        selectedFields.map(field => fieldMapping[field].getValue(user))
+      );
+      
+      const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${field}"`).join(','))
+        .join('\n');
+      
+      // Create filename with filters
+      let filename = 'users-export';
+      if (exportFilters.organization !== 'all') {
+        const org = organizations.find(o => o.id === exportFilters.organization);
+        if (org) filename += `-${org.name.replace(/\s+/g, '-')}`;
+      }
+      if (exportFilters.birthYear !== 'all') {
+        filename += `-birth-${exportFilters.birthYear}`;
+      }
+      if (exportFilters.graduationYear !== 'all') {
+        filename += `-grad-${exportFilters.graduationYear}`;
+      }
+      filename += `-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setShowExportSettings(false);
+      
+    } catch (error) {
+      console.error('Error exporting users:', error);
+      alert('Failed to export users. Please try again.');
+    }
+  };
+
+  // Get unique birth years and graduation years from users
+  const getAvailableYears = () => {
+    const birthYears = new Set();
+    const gradYears = new Set();
+    
+    allUsers.forEach(user => {
+      if (user.birthdate) {
+        birthYears.add(new Date(user.birthdate).getFullYear());
+      }
+      if (user.graduation_year) {
+        gradYears.add(user.graduation_year);
+      }
+    });
+    
+    return {
+      birthYears: Array.from(birthYears).sort((a, b) => b - a),
+      graduationYears: Array.from(gradYears).sort((a, b) => b - a)
+    };
   };
 
   const handleViewUserDetails = (userId) => {
@@ -505,9 +703,20 @@ const SuperAdminDashboard = ({ onLogout }) => {
       {/* Users Tab Content */}
       {activeTab === 'users' && (
         <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">All Users</h3>
-            <p className="text-sm text-gray-500">Manage all users across the platform</p>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">All Users</h3>
+              <p className="text-sm text-gray-500">Manage all users across the platform</p>
+            </div>
+            <button
+              onClick={() => setShowExportSettings(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Export Users</span>
+            </button>
           </div>
           <div className="p-6">
             {allUsers.length === 0 ? (
@@ -521,15 +730,50 @@ const SuperAdminDashboard = ({ onLogout }) => {
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-4">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            user.is_active ? 'bg-green-100' : 'bg-gray-100'
-                          }`}>
-                            <span className={`text-sm font-medium ${
-                              user.is_active ? 'text-green-800' : 'text-gray-500'
+                          {user.profile_picture_url ? (
+                            <button
+                              onClick={() => setImagePopup({
+                                open: true,
+                                url: user.profile_picture_url,
+                                userName: `${user.first_name} ${user.last_name}`
+                              })}
+                              className="relative group cursor-pointer"
+                            >
+                              <img
+                                src={user.profile_picture_url}
+                                alt={`${user.first_name} ${user.last_name}`}
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 group-hover:border-blue-500 transition-colors"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextElementSibling.style.display = 'flex';
+                                }}
+                              />
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                user.is_active ? 'bg-green-100' : 'bg-gray-100'
+                              } hidden`}>
+                                <span className={`text-sm font-medium ${
+                                  user.is_active ? 'text-green-800' : 'text-gray-500'
+                                }`}>
+                                  {user.first_name?.[0]}{user.last_name?.[0]}
+                                </span>
+                              </div>
+                              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-full transition-all">
+                                <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                </svg>
+                              </div>
+                            </button>
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                              user.is_active ? 'bg-green-100' : 'bg-gray-100'
                             }`}>
-                              {user.first_name?.[0]}{user.last_name?.[0]}
-                            </span>
-                          </div>
+                              <span className={`text-sm font-medium ${
+                                user.is_active ? 'text-green-800' : 'text-gray-500'
+                              }`}>
+                                {user.first_name?.[0]}{user.last_name?.[0]}
+                              </span>
+                            </div>
+                          )}
                           <div>
                             <h4 className="text-lg font-medium text-gray-900">
                               {user.first_name} {user.last_name}
@@ -919,6 +1163,217 @@ const SuperAdminDashboard = ({ onLogout }) => {
           </div>
         </div>
       )}
+
+      {/* Export Settings Modal */}
+      {showExportSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Export Users</h3>
+              <p className="text-sm text-gray-500 mt-1">Configure export filters and select fields</p>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Filters Section */}
+              <div className="border-b pb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-4">Filters</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Organization Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Organization
+                    </label>
+                    <select
+                      value={exportFilters.organization}
+                      onChange={(e) => setExportFilters({...exportFilters, organization: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Organizations</option>
+                      {organizations.map(org => (
+                        <option key={org.id} value={org.id}>{org.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Birth Year Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Birth Year
+                    </label>
+                    <select
+                      value={exportFilters.birthYear}
+                      onChange={(e) => setExportFilters({...exportFilters, birthYear: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Birth Years</option>
+                      {getAvailableYears().birthYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Graduation Year Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Graduation Year
+                    </label>
+                    <select
+                      value={exportFilters.graduationYear}
+                      onChange={(e) => setExportFilters({...exportFilters, graduationYear: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">All Graduation Years</option>
+                      {getAvailableYears().graduationYears.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fields Selection */}
+              <div>
+                <h4 className="text-md font-medium text-gray-900 mb-4">Export Fields</h4>
+                
+                {/* Basic Information */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Basic Information</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['fullName', 'firstName', 'lastName', 'email', 'username', 'phoneNumber', 'gender', 'birthDate'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Academic Information */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Academic Information</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['studentId', 'major', 'schoolYear', 'gpa', 'graduationYear', 'universityName', 'facultyName'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Location & Organization */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Location & Organization</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['city', 'country', 'organizationName', 'organizationRole'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status & Dates */}
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">Status & Dates</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {['isActive', 'isVerified', 'joinedOrganization', 'accountCreated'].map(field => (
+                      <label key={field} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportFields[field]}
+                          onChange={(e) => setExportFields(prev => ({...prev, [field]: e.target.checked}))}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {field.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowExportSettings(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={exportToExcel}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Export to CSV</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Picture Popup */}
+      <Dialog open={imagePopup.open} onOpenChange={(open) => setImagePopup({ ...imagePopup, open })}>
+        <DialogPortal>
+          <DialogOverlay />
+          <DialogContent className="max-w-4xl p-0 bg-transparent border-none shadow-none">
+            <div className="relative bg-white rounded-lg overflow-hidden">
+              {/* Header */}
+              <div className="bg-gray-900 bg-opacity-90 px-6 py-4 flex items-center justify-between">
+                <h3 className="text-lg font-medium text-white">{imagePopup.userName}</h3>
+                <button
+                  onClick={() => setImagePopup({ open: false, url: '', userName: '' })}
+                  className="text-white hover:text-gray-300 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Image */}
+              <div className="bg-gray-50 flex items-center justify-center p-8">
+                <img
+                  src={imagePopup.url}
+                  alt={imagePopup.userName}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                  onError={(e) => {
+                    e.target.src = '';
+                    e.target.alt = 'Failed to load image';
+                  }}
+                />
+              </div>
+            </div>
+          </DialogContent>
+        </DialogPortal>
+      </Dialog>
     </div>
   );
 };

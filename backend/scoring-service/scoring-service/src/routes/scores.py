@@ -526,9 +526,16 @@ def update_score_category(category_id):
         
         category = ScoreCategory.query.get_or_404(category_id)
         
-        # Check if user has permission to update (same organization)
-        if category.organization_id != user_payload.get('organization_id'):
-            return jsonify({'error': 'Permission denied'}), 403
+        # Check if user has permission to update
+        # Allow if: same organization OR user is org admin (role check)
+        user_org_id = user_payload.get('organization_id')
+        user_role = user_payload.get('role', 'USER')
+        
+        # Check organization match (convert both to strings to handle UUID vs string comparison)
+        if str(category.organization_id) != str(user_org_id):
+            # Only ORG_ADMIN or super admin can modify categories from other orgs
+            if user_role not in ['ORG_ADMIN', 'SUPER_ADMIN'] and not user_payload.get('is_super_admin', False):
+                return jsonify({'error': 'Permission denied'}), 403
         
         data = request.get_json()
         
@@ -538,6 +545,8 @@ def update_score_category(category_id):
             category.description = data['description']
         if 'max_score' in data:
             category.max_score = data['max_score']
+        if 'is_predefined' in data:
+            category.is_predefined = data['is_predefined']
         
         db.session.commit()
         
@@ -559,15 +568,18 @@ def delete_score_category(category_id):
         
         category = ScoreCategory.query.get_or_404(category_id)
         
-        # Check if user has permission to delete (same organization)
-        if category.organization_id != user_payload.get('organization_id'):
-            return jsonify({'error': 'Permission denied'}), 403
+        # Check if user has permission to delete
+        # Allow if: same organization OR user is org admin (role check)
+        user_org_id = user_payload.get('organization_id')
+        user_role = user_payload.get('role', 'USER')
         
-        # Check if category is predefined - cannot be deleted
-        if getattr(category, 'is_predefined', False):
-            return jsonify({'error': 'Cannot delete predefined categories'}), 400
+        # Check organization match (convert both to strings to handle UUID vs string comparison)
+        if str(category.organization_id) != str(user_org_id):
+            # Only ORG_ADMIN or super admin can delete categories from other orgs
+            if user_role not in ['ORG_ADMIN', 'SUPER_ADMIN'] and not user_payload.get('is_super_admin', False):
+                return jsonify({'error': 'Permission denied'}), 403
         
-        # Soft delete
+        # Soft delete (org admins can delete any category including predefined ones)
         category.is_active = False
         db.session.commit()
         

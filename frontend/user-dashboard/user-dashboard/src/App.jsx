@@ -482,6 +482,7 @@ function Dashboard() {
   const [weeklyData, setWeeklyData] = useState([])
   const [categories, setCategories] = useState([])
   const [chartLoading, setChartLoading] = useState(true)
+  const [orgFilterSettings, setOrgFilterSettings] = useState(null)
   
   // Self-reporting state
   const [predefinedCategories, setPredefinedCategories] = useState([])
@@ -495,11 +496,32 @@ function Dashboard() {
 
   useEffect(() => {
     if (currentOrganization?.organization_id) {
+      fetchOrganizationFilterSettings()
       fetchDashboardData()
       fetchWeeklyData()
       fetchPredefinedCategories()
     }
   }, [currentOrganization])
+
+  const fetchOrganizationFilterSettings = async () => {
+    try {
+      const response = await api.get('/organizations')
+      const org = response.data
+      
+      if (org.filter_enabled) {
+        setOrgFilterSettings({
+          enabled: true,
+          start_date: org.filter_start_date,
+          end_date: org.filter_end_date
+        })
+      } else {
+        setOrgFilterSettings({ enabled: false })
+      }
+    } catch (error) {
+      console.error('Failed to fetch organization filter settings:', error)
+      setOrgFilterSettings({ enabled: false })
+    }
+  }
 
   useEffect(() => {
     // Load full leaderboard data on component mount
@@ -772,7 +794,14 @@ function Dashboard() {
               <Trophy className="h-5 w-5 mr-2 text-yellow-500" />
               {t('leaderboard.title')}
             </CardTitle>
-            <CardDescription>{t('dashboard.topPerformers')}</CardDescription>
+            <CardDescription>
+              {t('dashboard.topPerformers')}
+              {orgFilterSettings?.enabled && (
+                <div className="mt-2 text-xs text-blue-600 font-medium">
+                  📅 Filtered: {orgFilterSettings.start_date || 'Start'} to {orgFilterSettings.end_date || 'End'}
+                </div>
+              )}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

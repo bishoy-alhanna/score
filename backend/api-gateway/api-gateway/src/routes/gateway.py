@@ -231,6 +231,12 @@ def organizations_stats():
     """Proxy organization stats to auth service"""
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/organizations/stats')
 
+@gateway_bp.route('/organizations/filter-settings', methods=['PUT'])
+@rate_limit()
+def organizations_filter_settings():
+    """Proxy organization filter settings update to auth service"""
+    return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/organizations/filter-settings')
+
 # Super Admin routes (no authentication required for login)
 @gateway_bp.route('/super-admin/login', methods=['POST'])
 @rate_limit(max_requests=10, window=3600)  # 10 login attempts per hour

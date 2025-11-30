@@ -1,10 +1,7 @@
 {
   "public": "dist",
+  "cleanUrls": false,
   "rewrites": [
-    {
-      "source": "**",
-      "destination": "/index.html"
-    }
-  ],
-  "directoryListing": false
+    { "source": "**", "destination": "/index.html" }
+  ]
 }

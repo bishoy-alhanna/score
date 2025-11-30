@@ -16,11 +16,11 @@ RUN pnpm install
 # Copy source
 COPY . .
 
-# Build app
-RUN pnpm run build
+# Copy production environment file
+COPY .env.production .env.production
 
-# Copy serve configuration
-COPY serve.json /app/
+# Build app with production environment
+RUN pnpm run build
 
 RUN npm install -g serve
 
@@ -37,5 +37,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://0.0.0.0:3000/ || exit 1
 
-# Start server with configuration file
-CMD ["serve", "-c", "serve.json", "-l", "tcp://0.0.0.0:3000"]
+# Start server with SPA mode (serves files directly, falls back to index.html)
+CMD ["serve", "-s", "dist", "-l", "tcp://0.0.0.0:3000"]

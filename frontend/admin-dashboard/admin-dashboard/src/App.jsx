@@ -23,6 +23,7 @@ import SuperAdminDashboard from '@/components/SuperAdminDashboard'
 import AdminLogin from '@/components/AdminLogin'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import TranslationWrapper from '@/components/TranslationWrapper'
+import UserScoresManagement from '@/components/UserScoresManagement'
 import { useTranslation } from 'react-i18next'
 import './i18n'
 import './rtl.css'
@@ -32,7 +33,7 @@ import './App.css'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // API service
-const api = axios.create({
+export const api = axios.create({
   baseURL: API_BASE_URL,
 })
 
@@ -47,6 +48,12 @@ api.interceptors.request.use((config) => {
 
 // Auth context
 const AuthContext = React.createContext()
+
+export function useAuth() {
+  return React.useContext(AuthContext)
+}
+
+export { AuthContext }
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -167,10 +174,6 @@ function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-function useAuth() {
-  return React.useContext(AuthContext)
 }
 
 // Organization selection/creation component
@@ -565,9 +568,10 @@ function AppContent() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="join-requests" className="w-full">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="join-requests">{t('navigation.joinRequests')}</TabsTrigger>
                 <TabsTrigger value="users">{t('navigation.users')}</TabsTrigger>
+                <TabsTrigger value="user-scores">{t('navigation.userScores')}</TabsTrigger>
                 <TabsTrigger value="groups">{t('navigation.groups')}</TabsTrigger>
                 <TabsTrigger value="scoring">{t('navigation.scoring')}</TabsTrigger>
                 <TabsTrigger value="leaderboard">{t('navigation.leaderboards')}</TabsTrigger>
@@ -580,6 +584,10 @@ function AppContent() {
               
               <TabsContent value="users" className="space-y-4">
                 <UsersManagement />
+              </TabsContent>
+              
+              <TabsContent value="user-scores" className="space-y-4">
+                <UserScoresManagement />
               </TabsContent>
               
               <TabsContent value="groups" className="space-y-4">
@@ -762,6 +770,7 @@ function UsersManagement() {
   const [editingUser, setEditingUser] = useState(null)
   const [passwordResetUser, setPasswordResetUser] = useState(null)
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null)
+  const [imagePopup, setImagePopup] = useState({ open: false, url: '', userName: '' })
   const { currentOrganization } = useAuth()
 
   const [inviteData, setInviteData] = useState({
@@ -1056,9 +1065,38 @@ function UsersManagement() {
                 <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3">
-                      <div className="bg-blue-100 rounded-full p-2">
-                        <Users className="h-5 w-5 text-blue-600" />
-                      </div>
+                      {user.profile_picture_url ? (
+                        <button
+                          onClick={() => setImagePopup({
+                            open: true,
+                            url: user.profile_picture_url,
+                            userName: `${user.first_name} ${user.last_name}`
+                          })}
+                          className="relative group cursor-pointer"
+                        >
+                          <img
+                            src={user.profile_picture_url}
+                            alt={`${user.first_name} ${user.last_name}`}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 group-hover:border-blue-500 transition-colors"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextElementSibling.style.display = 'flex';
+                            }}
+                          />
+                          <div className="bg-blue-100 rounded-full p-2 w-10 h-10 hidden items-center justify-center">
+                            <Users className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-full transition-all">
+                            <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                            </svg>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="bg-blue-100 rounded-full p-2">
+                          <Users className="h-5 w-5 text-blue-600" />
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium">{user.first_name} {user.last_name}</p>
                         <p className="text-sm text-gray-600">@{user.username}</p>
@@ -1244,6 +1282,39 @@ function UsersManagement() {
             <Button variant="destructive" onClick={handleDeleteUser}>
               Remove User
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Picture Popup */}
+      <Dialog open={imagePopup.open} onOpenChange={(open) => setImagePopup({ ...imagePopup, open })}>
+        <DialogContent className="max-w-4xl p-0 bg-transparent border-none shadow-none">
+          <div className="relative bg-white rounded-lg overflow-hidden">
+            {/* Header */}
+            <div className="bg-gray-900 bg-opacity-90 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-medium text-white">{imagePopup.userName}</h3>
+              <button
+                onClick={() => setImagePopup({ open: false, url: '', userName: '' })}
+                className="text-white hover:text-gray-300 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Image */}
+            <div className="bg-gray-50 flex items-center justify-center p-8">
+              <img
+                src={imagePopup.url}
+                alt={imagePopup.userName}
+                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                onError={(e) => {
+                  e.target.src = '';
+                  e.target.alt = 'Failed to load image';
+                }}
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1592,10 +1663,12 @@ function ScoringManagement() {
 
   // Category management state
   const [showCreateCategory, setShowCreateCategory] = useState(false)
+  const [editingCategory, setEditingCategory] = useState(null)
   const [newCategory, setNewCategory] = useState({
     name: '',
     description: '',
-    max_score: 100
+    max_score: 100,
+    is_predefined: false
   })
 
   // Score assignment state
@@ -1652,7 +1725,7 @@ function ScoringManagement() {
         organization_id: currentOrganization.organization_id
       })
       setScoreCategories([...scoreCategories, response.data.category])
-      setNewCategory({ name: '', description: '', max_score: 100 })
+      setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
       setShowCreateCategory(false)
       setSuccess('Score category created successfully!')
     } catch (error) {
@@ -1660,12 +1733,34 @@ function ScoringManagement() {
     }
   }
 
-  const handleDeleteCategory = async (categoryId, categoryName, isPredefined) => {
-    if (isPredefined) {
-      setError('Cannot delete predefined categories')
-      return
+  const handleEditCategory = (category) => {
+    setEditingCategory(category)
+    setNewCategory({
+      name: category.name,
+      description: category.description,
+      max_score: category.max_score,
+      is_predefined: category.is_predefined || false
+    })
+    setShowCreateCategory(true)
+  }
+
+  const handleUpdateCategory = async (e) => {
+    e.preventDefault()
+    try {
+      const response = await api.put(`/scores/categories/${editingCategory.id}`, newCategory)
+      setScoreCategories(scoreCategories.map(cat => 
+        cat.id === editingCategory.id ? response.data.category : cat
+      ))
+      setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+      setEditingCategory(null)
+      setShowCreateCategory(false)
+      setSuccess('Score category updated successfully!')
+    } catch (error) {
+      setError('Failed to update score category')
     }
-    
+  }
+
+  const handleDeleteCategory = async (categoryId, categoryName) => {
     if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
       return
     }
@@ -1761,15 +1856,20 @@ function ScoringManagement() {
                     <p className="text-sm text-gray-500">Max Score: {category.max_score}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {!category.is_predefined && (
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDeleteCategory(category.id, category.name, category.is_predefined)}
-                      >
-                        Delete
-                      </Button>
-                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleEditCategory(category)}
+                    >
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => handleDeleteCategory(category.id, category.name)}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -1873,17 +1973,21 @@ function ScoringManagement() {
         </Card>
       </div>
 
-      {/* Create Category Dialog */}
+      {/* Create/Edit Category Dialog */}
       {showCreateCategory && (
-        <Dialog open={showCreateCategory} onOpenChange={setShowCreateCategory}>
+        <Dialog open={showCreateCategory} onOpenChange={() => {
+          setShowCreateCategory(false)
+          setEditingCategory(null)
+          setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+        }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create Score Category</DialogTitle>
+              <DialogTitle>{editingCategory ? 'Edit Score Category' : 'Create Score Category'}</DialogTitle>
               <DialogDescription>
-                Create a new scoring category for your organization
+                {editingCategory ? 'Update the scoring category' : 'Create a new scoring category for your organization'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateCategory} className="space-y-4">
+            <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory} className="space-y-4">
               <div>
                 <Label htmlFor="category_name">Category Name</Label>
                 <Input
@@ -1911,9 +2015,28 @@ function ScoringManagement() {
                   required
                 />
               </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="is_predefined"
+                  checked={newCategory.is_predefined}
+                  onChange={(e) => setNewCategory({ ...newCategory, is_predefined: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="is_predefined" className="cursor-pointer">
+                  Mark as Predefined Category
+                  <span className="block text-xs text-gray-500">
+                    Predefined categories are highlighted and can be used for standard activities
+                  </span>
+                </Label>
+              </div>
               <div className="flex space-x-2">
-                <Button type="submit">Create Category</Button>
-                <Button type="button" variant="outline" onClick={() => setShowCreateCategory(false)}>
+                <Button type="submit">{editingCategory ? 'Update Category' : 'Create Category'}</Button>
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowCreateCategory(false)
+                  setEditingCategory(null)
+                  setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+                }}>
                   Cancel
                 </Button>
               </div>
@@ -1935,6 +2058,9 @@ function LeaderboardManagement() {
   const [activeTab, setActiveTab] = useState('users')
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false)
   
   // User Profiles Management State
   const [userProfiles, setUserProfiles] = useState([])
@@ -2007,18 +2133,57 @@ function LeaderboardManagement() {
   
   const { currentOrganization } = useAuth()
 
+  // Load organization filter settings on mount
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchCategories()
-      fetchLeaderboards()
+      loadOrganizationFilterSettings()
     }
   }, [currentOrganization])
+
+  const loadOrganizationFilterSettings = async () => {
+    try {
+      const response = await api.get(`/organizations`)
+      const org = response.data
+      
+      if (org.filter_enabled) {
+        setDateFilterEnabled(true)
+        setStartDate(org.filter_start_date || '')
+        setEndDate(org.filter_end_date || '')
+      }
+    } catch (error) {
+      console.error('Failed to load organization filter settings:', error)
+    }
+  }
+
+  const saveOrganizationFilterSettings = async () => {
+    try {
+      const payload = {
+        filter_enabled: dateFilterEnabled,
+        filter_start_date: dateFilterEnabled ? startDate : null,
+        filter_end_date: dateFilterEnabled ? endDate : null
+      }
+      
+      await api.put('/organizations/filter-settings', payload)
+      
+      alert('Date filter settings saved successfully!')
+    } catch (error) {
+      console.error('Failed to save organization filter settings:', error)
+      alert('Failed to save date filter settings. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id && categories.length > 0) {
+      fetchLeaderboards()
+    }
+  }, [currentOrganization, categories])
 
   useEffect(() => {
     if (currentOrganization?.organization_id && selectedCategory) {
       fetchLeaderboards()
     }
-  }, [selectedCategory])
+  }, [selectedCategory, startDate, endDate, dateFilterEnabled])
 
   // Fetch user profiles when tab is active or dependencies change
   useEffect(() => {
@@ -2046,9 +2211,23 @@ function LeaderboardManagement() {
   const fetchLeaderboards = async () => {
     try {
       setLoading(true)
+      
+      // Build query parameters
+      let queryParams = `organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`
+      
+      // Add date range if enabled and dates are provided
+      if (dateFilterEnabled) {
+        if (startDate) {
+          queryParams += `&start_date=${startDate}`
+        }
+        if (endDate) {
+          queryParams += `&end_date=${endDate}`
+        }
+      }
+      
       const [usersResponse, groupsResponse] = await Promise.all([
-        api.get(`/leaderboards/users?organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`),
-        api.get(`/leaderboards/groups?organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`)
+        api.get(`/leaderboards/users?${queryParams}`),
+        api.get(`/leaderboards/groups?${queryParams}`)
       ])
       
       setUserLeaderboard(usersResponse.data.leaderboard || [])
@@ -2201,7 +2380,7 @@ function LeaderboardManagement() {
           <TrendingUp className="h-5 w-5" />
           {t('sections.leaderboards')}
         </h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <label htmlFor="category-select" className="text-sm font-medium">{t('leaderboards.category')}:</label>
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -2217,6 +2396,48 @@ function LeaderboardManagement() {
               </SelectContent>
             </Select>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="date-filter" 
+              checked={dateFilterEnabled} 
+              onCheckedChange={setDateFilterEnabled}
+            />
+            <label htmlFor="date-filter" className="text-sm font-medium cursor-pointer">
+              Filter by Date
+            </label>
+          </div>
+          
+          {dateFilterEnabled && (
+            <>
+              <div className="flex items-center gap-2">
+                <label htmlFor="start-date" className="text-sm font-medium">From:</label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label htmlFor="end-date" className="text-sm font-medium">To:</label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-[150px]"
+                />
+              </div>
+              
+              <Button onClick={saveOrganizationFilterSettings} variant="default">
+                Save as Default
+              </Button>
+            </>
+          )}
+          
           <Button onClick={fetchLeaderboards} variant="outline">
             {t('common.refresh')}
           </Button>
@@ -2251,7 +2472,12 @@ function LeaderboardManagement() {
                         {user.rank || index + 1}
                       </div>
                       <div>
-                        <h4 className="font-medium">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || `User ${user.user_id?.slice(0, 8)}`}</h4>
+                        <h4 className="font-medium">
+                          {user.display_name || 
+                           (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : '') ||
+                           user.username || 
+                           `User ${user.user_id?.slice(0, 8)}`}
+                        </h4>
                         <p className="text-sm text-gray-600">@{user.username || 'unknown'}</p>
                       </div>
                     </div>
@@ -2766,7 +2992,7 @@ function LeaderboardManagement() {
                                   src={(() => {
                                     if (!user.profile_picture_url || user.profile_picture_url.trim() === '') return '/default-profile.png';
                                     if (user.profile_picture_url.startsWith('http')) return user.profile_picture_url;
-                                    return `https://score.al-hanna.com${user.profile_picture_url}`;
+                                    return `https://escore.al-hanna.com${user.profile_picture_url}`;
                                   })()}
                                   alt="Profile"
                                   className="w-8 h-8 rounded-full object-cover border border-gray-300 bg-gray-100"
