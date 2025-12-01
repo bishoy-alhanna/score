@@ -1070,8 +1070,8 @@ function AppContent() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-lg">{entry.total_score}</p>
-                        <p className="text-sm text-gray-600">avg: {entry.average_score.toFixed(1)}</p>
+                        <p className="font-bold text-lg">{entry.total_score || 0}</p>
+                        <p className="text-sm text-gray-600">avg: {(entry.average_score || 0).toFixed(1)}</p>
                       </div>
                     </div>
                   ))}
