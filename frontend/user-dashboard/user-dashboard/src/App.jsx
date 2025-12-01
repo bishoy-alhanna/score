@@ -1018,14 +1018,71 @@ function AppContent() {
                 <Trophy className="h-5 w-5 mr-2 text-yellow-500" />
                 {t('leaderboard.title')}
               </CardTitle>
-              <CardDescription>View the top performers in your organization</CardDescription>
+              <CardDescription>
+                View the top performers in your organization
+                {orgFilterSettings?.enabled && (
+                  <div className="mt-2 text-xs text-blue-600 font-medium">
+                    📅 Filtered: {orgFilterSettings.start_date || 'Start'} to {orgFilterSettings.end_date || 'End'}
+                  </div>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <Trophy className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600">Full leaderboard coming soon!</p>
-                <p className="text-sm text-gray-500 mt-2">Check back later for complete rankings.</p>
-              </div>
+              {leaderboardLoading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading leaderboard...</p>
+                </div>
+              ) : fullLeaderboard.length > 0 ? (
+                <div className="space-y-3">
+                  {fullLeaderboard.map((entry, index) => (
+                    <div 
+                      key={entry.user_id} 
+                      className={`flex items-center justify-between p-3 rounded-lg ${
+                        entry.user_id === user.id ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                          index === 0 ? 'bg-yellow-500 text-white' :
+                          index === 1 ? 'bg-gray-400 text-white' :
+                          index === 2 ? 'bg-orange-500 text-white' :
+                          'bg-gray-200 text-gray-700'
+                        }`}>
+                          {entry.rank}
+                        </div>
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                          {entry.profile_picture_url ? (
+                            <img 
+                              src={entry.profile_picture_url.startsWith('http') ? entry.profile_picture_url : `${window.location.origin}${entry.profile_picture_url}`} 
+                              alt="Profile" 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium">
+                            {entry.user_id === user.id ? 'You' : (entry.display_name || `User ${entry.user_id.slice(0, 8)}`)}
+                          </p>
+                          <p className="text-sm text-gray-600">{entry.score_count} scores</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg">{entry.total_score}</p>
+                        <p className="text-sm text-gray-600">avg: {entry.average_score.toFixed(1)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Trophy className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600">No leaderboard data available</p>
+                  <p className="text-sm text-gray-500 mt-2">Start earning points to appear on the leaderboard!</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
