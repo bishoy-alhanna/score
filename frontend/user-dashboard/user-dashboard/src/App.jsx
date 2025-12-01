@@ -798,7 +798,7 @@ function Dashboard() {
               {t('dashboard.topPerformers')}
               {orgFilterSettings?.enabled && (
                 <div className="mt-2 text-xs text-blue-600 font-medium">
-                  📅 Filtered: {orgFilterSettings.start_date || 'Start'} to {orgFilterSettings.end_date || 'End'}
+                  📅 Filtered: {orgFilterSettings?.start_date || 'Start'} to {orgFilterSettings?.end_date || 'End'}
                 </div>
               )}
             </CardDescription>
@@ -1022,7 +1022,7 @@ function AppContent() {
                 View the top performers in your organization
                 {orgFilterSettings?.enabled && (
                   <div className="mt-2 text-xs text-blue-600 font-medium">
-                    📅 Filtered: {orgFilterSettings.start_date || 'Start'} to {orgFilterSettings.end_date || 'End'}
+                    📅 Filtered: {orgFilterSettings?.start_date || 'Start'} to {orgFilterSettings?.end_date || 'End'}
                   </div>
                 )}
               </CardDescription>
