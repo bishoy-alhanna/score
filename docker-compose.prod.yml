@@ -78,6 +78,8 @@ services:
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - FLASK_ENV=production
+    volumes:
+      - user_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -242,6 +244,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
+      - user_uploads:/var/www/uploads:ro
     depends_on:
       - api-gateway
       - admin-dashboard
@@ -262,6 +265,9 @@ volumes:
     driver: local
   nginx_logs:
     driver: local
+  user_uploads:
+    external: true
+    name: score_user_uploads
 
 networks:
   score_network:
