@@ -531,7 +531,7 @@ function Dashboard() {
   }, [currentOrganization])
 
   const fetchDashboardData = async () => {
-    if (!currentOrganization?.organization_id) return
+    if (!currentOrganization?.organization_id || !user?.id) return
     
     try {
       const [statsResponse, leaderboardResponse, groupsResponse] = await Promise.all([
@@ -646,7 +646,7 @@ function Dashboard() {
   }
 
   // Find user's rank in leaderboard
-  const myRank = leaderboard.findIndex(entry => entry.user_id === user.id) + 1
+  const myRank = leaderboard.findIndex(entry => entry.user_id === user?.id) + 1
 
   return (
     <div className="space-y-6">
@@ -809,7 +809,7 @@ function Dashboard() {
                 <div 
                   key={entry.user_id} 
                   className={`flex items-center justify-between p-3 rounded-lg ${
-                    entry.user_id === user.id ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
+                    entry.user_id === user?.id ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
                   }`}
                 >
                   <div className="flex items-center space-x-3">
@@ -834,14 +834,14 @@ function Dashboard() {
                     </div>
                     <div>
                       <p className="font-medium">
-                        {entry.user_id === user.id ? 'You' : (entry.display_name || `User ${entry.user_id.slice(0, 8)}`)}
+                        {entry.user_id === user?.id ? 'You' : (entry.display_name || `User ${entry.user_id.slice(0, 8)}`)}
                       </p>
-                      <p className="text-sm text-gray-600">{entry.score_count} scores</p>
+                      <p className="text-sm text-gray-600">{entry.score_count || 0} scores</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-lg">{entry.total_score}</p>
-                    <p className="text-sm text-gray-600">avg: {entry.average_score.toFixed(1)}</p>
+                    <p className="font-bold text-lg">{entry.total_score || 0}</p>
+                    <p className="text-sm text-gray-600">avg: {(entry.average_score || 0).toFixed(1)}</p>
                   </div>
                 </div>
               ))}
@@ -1039,7 +1039,7 @@ function AppContent() {
                     <div 
                       key={entry.user_id} 
                       className={`flex items-center justify-between p-3 rounded-lg ${
-                        entry.user_id === user.id ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
+                        entry.user_id === user?.id ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center space-x-3">
@@ -1064,9 +1064,9 @@ function AppContent() {
                         </div>
                         <div>
                           <p className="font-medium">
-                            {entry.user_id === user.id ? 'You' : (entry.display_name || `User ${entry.user_id.slice(0, 8)}`)}
+                            {entry.user_id === user?.id ? 'You' : (entry.display_name || `User ${entry.user_id.slice(0, 8)}`)}
                           </p>
-                          <p className="text-sm text-gray-600">{entry.score_count} scores</p>
+                          <p className="text-sm text-gray-600">{entry.score_count || 0} scores</p>
                         </div>
                       </div>
                       <div className="text-right">
