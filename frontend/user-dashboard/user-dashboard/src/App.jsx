@@ -1018,14 +1018,82 @@ function AppContent() {
                 <Trophy className="h-5 w-5 mr-2 text-yellow-500" />
                 {t('leaderboard.title')}
               </CardTitle>
-              <CardDescription>View the top performers in your organization</CardDescription>
+              <CardDescription>
+                {orgFilterSettings?.enabled && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    📅 Filtered: {orgFilterSettings?.start_date || 'Start'} to {orgFilterSettings?.end_date || 'End'}
+                  </div>
+                )}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <Trophy className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-600">Full leaderboard coming soon!</p>
-                <p className="text-sm text-gray-500 mt-2">Check back later for complete rankings.</p>
-              </div>
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {leaderboard.map((player, index) => {
+                    const isCurrentUser = user?.id === player.user_id
+                    const rankColors = {
+                      0: 'bg-yellow-100 border-yellow-300',
+                      1: 'bg-gray-100 border-gray-300',
+                      2: 'bg-orange-100 border-orange-300'
+                    }
+                    
+                    return (
+                      <div
+                        key={player.user_id}
+                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
+                          isCurrentUser 
+                            ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' 
+                            : rankColors[index] || 'bg-white border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="flex-shrink-0">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                              index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                              index === 1 ? 'bg-gray-400 text-gray-900' :
+                              index === 2 ? 'bg-orange-400 text-orange-900' :
+                              'bg-gray-200 text-gray-700'
+                            }`}>
+                              {index + 1}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage 
+                                src={player.profile_picture_url || `https://api.dicebear.com/7.x/initials/svg?seed=${player.display_name}`} 
+                                alt={player.display_name} 
+                              />
+                              <AvatarFallback>{player.display_name?.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">
+                                {player.display_name}
+                                {isCurrentUser && (
+                                  <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                                    You
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-primary">
+                            {(player.average_score ?? 0).toFixed(1)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {player.score_count ?? 0} {player.score_count === 1 ? 'score' : 'scores'}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

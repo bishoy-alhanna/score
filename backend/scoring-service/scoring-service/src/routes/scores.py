@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import jwt
 from src.models.database import db, Score, ScoreAggregate, ScoreCategory
-from sqlalchemy import func
+from sqlalchemy import func, text
 import os
 
 scores_bp = Blueprint('scores', __name__)
@@ -21,6 +21,46 @@ def verify_token_and_get_user():
         return None, {'error': 'Invalid token'}, 401
     
     return payload, None, None
+
+def get_group_manual_score(group_id):
+    """Fetch manual score for a group directly from database"""
+    try:
+        result = db.session.execute(
+            text("SELECT manual_score FROM groups WHERE id = :group_id"),
+            {"group_id": group_id}
+        ).fetchone()
+        return result[0] if result else 0
+    except Exception as e:
+        print(f"Error fetching group manual score: {e}")
+        return 0
+
+def calculate_group_members_score_sum(group_id, category, organization_id):
+    """Calculate sum of all member scores for a group across ALL categories"""
+    try:
+        # Get all members of the group directly from database
+        member_user_ids_result = db.session.execute(
+            text("SELECT user_id FROM group_members WHERE group_id = :group_id"),
+            {"group_id": group_id}
+        ).fetchall()
+        
+        if not member_user_ids_result:
+            return 0
+        
+        # Extract user IDs
+        member_user_ids = [row[0] for row in member_user_ids_result]
+        
+        # Calculate sum of ALL member scores across ALL categories (not filtered by category)
+        total = db.session.query(
+            func.sum(Score.score_value)
+        ).filter(
+            Score.user_id.in_(member_user_ids),
+            Score.organization_id == organization_id
+        ).scalar() or 0
+        
+        return total
+    except Exception as e:
+        print(f"Error calculating group members score sum: {e}")
+        return 0
 
 def update_score_aggregate(user_id=None, group_id=None, category='general', organization_id=None):
     """Update score aggregates for user or group"""
@@ -57,7 +97,8 @@ def update_score_aggregate(user_id=None, group_id=None, category='general', orga
         
     elif group_id:
         # Calculate aggregates for group
-        result = db.session.query(
+        # 1. Get direct group scores (scores assigned to the group itself)
+        direct_result = db.session.query(
             func.sum(Score.score_value).label('total'),
             func.count(Score.id).label('count'),
             func.avg(Score.score_value).label('average')
@@ -66,6 +107,18 @@ def update_score_aggregate(user_id=None, group_id=None, category='general', orga
             category=category,
             organization_id=organization_id
         ).first()
+        
+        direct_total = direct_result.total or 0
+        direct_count = direct_result.count or 0
+        
+        # 2. Get manual score set by admin
+        manual_score = get_group_manual_score(group_id)
+        
+        # 3. Calculate sum of all member scores
+        members_score_sum = calculate_group_members_score_sum(group_id, category, organization_id)
+        
+        # Total group score = direct scores + manual score + sum of member scores
+        total_group_score = direct_total + manual_score + members_score_sum
         
         # Update or create aggregate
         aggregate = ScoreAggregate.query.filter_by(
@@ -82,9 +135,9 @@ def update_score_aggregate(user_id=None, group_id=None, category='general', orga
             )
             db.session.add(aggregate)
         
-        aggregate.total_score = result.total or 0
-        aggregate.score_count = result.count or 0
-        aggregate.average_score = float(result.average or 0)
+        aggregate.total_score = total_group_score
+        aggregate.score_count = direct_count
+        aggregate.average_score = float(direct_result.average or 0) if direct_count > 0 else 0.0
 
 @scores_bp.route('', methods=['POST'])
 @scores_bp.route('/', methods=['POST'])
@@ -169,6 +222,22 @@ def assign_score():
             category=category,
             organization_id=organization_id
         )
+        
+        # If score was assigned to a user, also update all their group aggregates
+        if user_id:
+            # Get all groups this user is a member of
+            user_groups = db.session.execute(
+                text("SELECT DISTINCT group_id FROM group_members WHERE user_id = :user_id"),
+                {"user_id": user_id}
+            ).fetchall()
+            
+            # Update aggregate for each group
+            for group_row in user_groups:
+                update_score_aggregate(
+                    group_id=group_row[0],
+                    category=category,
+                    organization_id=organization_id
+                )
         
         db.session.commit()
         
@@ -413,37 +482,96 @@ def get_user_total_score(user_id):
 
 @scores_bp.route('/group/<group_id>/total', methods=['GET'])
 def get_group_total_score(group_id):
-    """Get group's total score across all categories"""
+    """Get group's total score across all categories with detailed breakdown"""
     try:
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
         
         organization_id = user_payload['organization_id']
+        category = request.args.get('category', 'general')
         
-        # Get total score for group
-        total = db.session.query(func.sum(Score.score_value)).filter_by(
+        # Get direct group scores (scores assigned directly to group)
+        direct_total = db.session.query(func.sum(Score.score_value)).filter_by(
             group_id=group_id,
-            organization_id=organization_id
+            organization_id=organization_id,
+            category=category
         ).scalar() or 0
         
         # Get score count
         count = Score.query.filter_by(
             group_id=group_id,
-            organization_id=organization_id
+            organization_id=organization_id,
+            category=category
         ).count()
         
-        # Get average
-        average = total / count if count > 0 else 0
+        # Get manual score from group
+        manual_score = get_group_manual_score(group_id)
+        
+        # Get sum of ALL member scores across ALL categories
+        members_score_sum = calculate_group_members_score_sum(group_id, category, organization_id)
+        
+        # Calculate total
+        total_score = direct_total + manual_score + members_score_sum
+        
+        # Get average (only from direct scores)
+        average = direct_total / count if count > 0 else 0
         
         return jsonify({
             'group_id': group_id,
-            'total_score': total,
+            'category': category,
+            'total_score': total_score,
+            'breakdown': {
+                'direct_group_scores': direct_total,
+                'manual_score': manual_score,
+                'members_score_sum_all_categories': members_score_sum
+            },
             'score_count': count,
-            'average_score': average
+            'average_score': average,
+            'note': 'members_score_sum includes ALL member scores across ALL categories'
         }), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@scores_bp.route('/group/<group_id>/recalculate', methods=['POST'])
+def recalculate_group_scores(group_id):
+    """Recalculate and update all score aggregates for a group (ORG_ADMIN only)"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        # Only ORG_ADMIN can recalculate scores
+        if user_payload.get('role') != 'ORG_ADMIN':
+            return jsonify({'error': 'Only organization admins can recalculate scores'}), 403
+        
+        organization_id = user_payload['organization_id']
+        category = request.args.get('category', 'general')
+        
+        # Recalculate aggregates for the specified group and category
+        update_score_aggregate(
+            group_id=group_id,
+            category=category,
+            organization_id=organization_id
+        )
+        
+        db.session.commit()
+        
+        # Get updated aggregate
+        aggregate = ScoreAggregate.query.filter_by(
+            group_id=group_id,
+            category=category,
+            organization_id=organization_id
+        ).first()
+        
+        return jsonify({
+            'message': 'Group scores recalculated successfully',
+            'aggregate': aggregate.to_dict() if aggregate else None
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
 # Score Categories endpoints

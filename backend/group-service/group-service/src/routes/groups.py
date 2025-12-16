@@ -231,6 +231,55 @@ def update_group(group_id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@groups_bp.route('/<group_id>/manual-score', methods=['PUT'])
+def update_manual_score(group_id):
+    """Update manual score for a group (ORG_ADMIN only)"""
+    try:
+        user_payload, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+        
+        # Only ORG_ADMIN can set manual scores
+        if user_payload.get('role') != 'ORG_ADMIN':
+            return jsonify({'error': 'Only organization admins can set manual scores'}), 403
+        
+        organization_id = user_payload['organization_id']
+        
+        # Get group in the same organization
+        group = Group.query.filter_by(
+            id=group_id,
+            organization_id=organization_id,
+            is_active=True
+        ).first()
+        
+        if not group:
+            return jsonify({'error': 'Group not found'}), 404
+        
+        data = request.get_json()
+        manual_score = data.get('manual_score')
+        
+        if manual_score is None:
+            return jsonify({'error': 'manual_score is required'}), 400
+        
+        # Validate that manual_score is an integer
+        try:
+            manual_score = int(manual_score)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'manual_score must be a valid integer'}), 400
+        
+        # Update manual score
+        group.manual_score = manual_score
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Manual score updated successfully',
+            'group': group.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @groups_bp.route('/<group_id>', methods=['DELETE'])
 def delete_group(group_id):
     """Delete group (soft delete)"""
