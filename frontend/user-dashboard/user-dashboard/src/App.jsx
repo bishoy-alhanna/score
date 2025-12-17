@@ -980,6 +980,27 @@ function AppContent() {
   console.log('AppContent component rendering')
   const { user, loading } = useAuth()
   const { t } = useTranslation()
+  const [leaderboard, setLeaderboard] = useState([])
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+
+  // Fetch leaderboard data for the leaderboard tab
+  useEffect(() => {
+    if (user) {
+      fetchLeaderboard()
+    }
+  }, [user])
+
+  const fetchLeaderboard = async () => {
+    try {
+      setLeaderboardLoading(true)
+      const response = await api.get('/leaderboards/users?limit=50&category=all')
+      setLeaderboard(response.data.leaderboard || [])
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error)
+    } finally {
+      setLeaderboardLoading(false)
+    }
+  }
 
   console.log('AppContent render - loading:', loading, 'user:', user ? 'exists' : 'null')
 
@@ -1023,7 +1044,7 @@ function AppContent() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {leaderboardLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
