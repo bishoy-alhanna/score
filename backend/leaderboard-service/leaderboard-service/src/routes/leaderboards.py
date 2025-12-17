@@ -492,7 +492,7 @@ def get_group_leaderboard():
         
         # If date range is provided (either explicitly or from org settings), query Score table directly
         if start_date or end_date:
-            from sqlalchemy import func
+            from sqlalchemy import func, text
             
             # Parse dates
             start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
@@ -502,37 +502,87 @@ def get_group_leaderboard():
                 from datetime import timedelta
                 end_dt = end_dt + timedelta(days=1)
             
-            # Build query for scores within date range
-            score_query = db.session.query(
-                Score.group_id,
-                func.sum(Score.score_value).label('total_score'),
-                func.count(Score.id).label('score_count'),
-                func.avg(Score.score_value).label('average_score'),
-                func.max(Score.created_at).label('last_updated')
-            ).filter_by(
-                organization_id=organization_id
-            ).filter(
-                Score.group_id.isnot(None)
-            )
+            # Use raw SQL to get all group scores (direct + manual + members)
+            # This is more reliable than complex ORM queries when models aren't available
             
-            # Apply date filters
-            if start_dt:
-                score_query = score_query.filter(Score.created_at >= start_dt)
-            if end_dt:
-                score_query = score_query.filter(Score.created_at < end_dt)
-            
-            # Apply category filter
+            # Build filters for direct scores (no table alias in this CTE)
+            direct_category_filter = ""
+            direct_date_filters = ""
             if category != 'all':
-                score_query = score_query.filter_by(category=category)
+                direct_category_filter = f"AND category = '{category}'"
+            if start_dt:
+                direct_date_filters += f" AND created_at >= '{start_dt}'"
+            if end_dt:
+                direct_date_filters += f" AND created_at < '{end_dt}'"
             
-            # Group by group_id and order by total score
-            score_query = score_query.group_by(Score.group_id).order_by(
-                func.sum(Score.score_value).desc()
-            ).limit(limit)
+            # Build filters for member scores (with 's' alias for scores table)
+            member_category_filter = ""
+            member_date_filters = ""
+            if category != 'all':
+                member_category_filter = f"AND s.category = '{category}'"
+            if start_dt:
+                member_date_filters += f" AND s.created_at >= '{start_dt}'"
+            if end_dt:
+                member_date_filters += f" AND s.created_at < '{end_dt}'"
             
-            # Convert to list of objects
-            group_aggregates = []
-            for row in score_query.all():
+            raw_query = text(f"""
+                WITH direct_scores AS (
+                    SELECT 
+                        group_id,
+                        COALESCE(SUM(score_value), 0) as direct_score,
+                        COUNT(id) as score_count,
+                        AVG(score_value) as average_score,
+                        MAX(created_at) as last_updated
+                    FROM scores
+                    WHERE organization_id = :org_id
+                    AND group_id IS NOT NULL
+                    {direct_date_filters}
+                    {direct_category_filter}
+                    GROUP BY group_id
+                ),
+                member_scores AS (
+                    SELECT 
+                        gm.group_id,
+                        COALESCE(SUM(s.score_value), 0) as member_score
+                    FROM group_members gm
+                    LEFT JOIN scores s ON s.user_id = gm.user_id 
+                        AND s.organization_id = :org_id
+                        {member_date_filters}
+                        {member_category_filter}
+                    WHERE gm.organization_id = :org_id
+                    AND gm.is_active = TRUE
+                    GROUP BY gm.group_id
+                ),
+                all_groups AS (
+                    SELECT DISTINCT group_id FROM direct_scores
+                    UNION
+                    SELECT DISTINCT group_id FROM member_scores
+                )
+                SELECT 
+                    ag.group_id,
+                    COALESCE(ds.direct_score, 0) + 
+                    COALESCE(ms.member_score, 0) + 
+                    COALESCE(g.manual_score, 0) as total_score,
+                    COALESCE(ds.score_count, 0) as score_count,
+                    ds.average_score,
+                    ds.last_updated
+                FROM all_groups ag
+                LEFT JOIN direct_scores ds ON ag.group_id = ds.group_id
+                LEFT JOIN member_scores ms ON ag.group_id = ms.group_id
+                LEFT JOIN groups g ON ag.group_id = g.id
+                ORDER BY total_score DESC
+                LIMIT :limit_val
+            """)
+            
+            try:
+                print(f"DEBUG: Executing raw SQL query for date-filtered group leaderboard")
+                result = db.session.execute(raw_query, {
+                    'org_id': str(organization_id),
+                    'limit_val': limit
+                })
+                
+                # Convert to list of mock aggregate objects
+                group_aggregates = []
                 class MockAggregate:
                     def __init__(self, group_id, total_score, score_count, average_score, last_updated):
                         self.group_id = group_id
@@ -541,10 +591,19 @@ def get_group_leaderboard():
                         self.average_score = float(average_score) if average_score else 0.0
                         self.last_updated = last_updated
                 
-                group_aggregates.append(MockAggregate(
-                    row.group_id, row.total_score, row.score_count,
-                    row.average_score, row.last_updated
-                ))
+                for row in result:
+                    print(f"DEBUG: Processing row - group_id: {row.group_id}, total_score: {row.total_score}")
+                    group_aggregates.append(MockAggregate(
+                        row.group_id, int(row.total_score), row.score_count,
+                        row.average_score, row.last_updated
+                    ))
+                
+                print(f"DEBUG: Successfully processed {len(group_aggregates)} group aggregates")
+            except Exception as e:
+                print(f"ERROR: Failed to execute raw SQL query: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                return jsonify({'error': 'Failed to fetch group leaderboard'}), 500
         else:
             # No date range - use cache and aggregates as before
             # Check cache first

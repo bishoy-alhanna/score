@@ -12,6 +12,7 @@ class Group(db.Model):
     description = db.Column(db.Text)
     organization_id = db.Column(db.String(36), nullable=False)
     created_by = db.Column(db.String(36), nullable=False)  # User ID who created the group
+    manual_score = db.Column(db.Integer, default=0)  # Manually assigned score by admins
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -29,6 +30,7 @@ class Group(db.Model):
             'description': self.description,
             'organization_id': str(self.organization_id) if self.organization_id else None,
             'created_by': str(self.created_by) if self.created_by else None,
+            'manual_score': self.manual_score or 0,
             'is_active': self.is_active,
             'member_count': len(self.members),
             'created_at': self.created_at.isoformat() if self.created_at else None,

@@ -49,24 +49,10 @@ http {
     add_header X-XSS-Protection "1; mode=block";
     add_header Referrer-Policy "strict-origin-when-cross-origin";
 
-    # Admin subdomain - HTTP to HTTPS redirect
+    # Admin subdomain
     server {
         listen 80;
         server_name admin.escore.al-hanna.com;
-        return 301 https://$server_name$request_uri;
-    }
-
-    # Admin subdomain - HTTPS
-    server {
-        listen 443 ssl http2;
-        server_name admin.escore.al-hanna.com;
-
-        # SSL Configuration
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers HIGH:!aNULL:!MD5;
-        ssl_prefer_server_ciphers on;
 
         # Health check endpoint
         location /health {
@@ -167,24 +153,10 @@ http {
         }
     }
 
-    # Main domain - HTTP to HTTPS redirect
+    # Main domain
     server {
         listen 80 default_server;
-        server_name escore.al-hanna.com;
-        return 301 https://$server_name$request_uri;
-    }
-
-    # Main domain - HTTPS
-    server {
-        listen 443 ssl http2 default_server;
-        server_name escore.al-hanna.com;
-
-        # SSL Configuration
-        ssl_certificate /etc/nginx/ssl/cert.pem;
-        ssl_certificate_key /etc/nginx/ssl/key.pem;
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers HIGH:!aNULL:!MD5;
-        ssl_prefer_server_ciphers on;
+        server_name escore.al-hanna.com localhost;
 
         # Health check endpoint
         location /health {
