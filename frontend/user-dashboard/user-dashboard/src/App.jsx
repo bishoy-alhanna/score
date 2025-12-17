@@ -1019,11 +1019,7 @@ function AppContent() {
                 {t('leaderboard.title')}
               </CardTitle>
               <CardDescription>
-                {orgFilterSettings?.enabled && (
-                  <div className="text-sm text-muted-foreground mt-1">
-                    📅 Filtered: {orgFilterSettings?.start_date || 'Start'} to {orgFilterSettings?.end_date || 'End'}
-                  </div>
-                )}
+                {t('dashboard.topPerformers')}
               </CardDescription>
             </CardHeader>
             <CardContent>
