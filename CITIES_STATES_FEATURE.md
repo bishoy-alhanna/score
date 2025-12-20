@@ -1,22 +1,27 @@
-# Cities and States Management Feature
+# Cities, States, and Sub-Regions Management Feature
 
 ## Overview
-Convert city and state fields from text input to dropdown lists managed by super admin.
+Convert city and state fields from text input to hierarchical dropdown lists (State → City → Sub-Region) managed by super admin.
 
-## Changes Made
+## Database Structure
 
-### 1. Database Migration ✅
-**File:** `database/add_cities_states_tables.sql`
+### Hierarchy
+```
+State (Governorate)
+  └── City
+       └── Sub-Region (District/Neighborhood)
+```
 
-Created two new tables:
-- **`states`** - Contains governorates/states (26 Egyptian governorates pre-populated)
-- **`cities`** - Contains cities belonging to states (sample Cairo cities included)
+### Tables Created
+1. **`states`** - 27 Egyptian governorates
+2. **`cities`** - 70+ cities (30 Cairo, 20 Alexandria, 20 Giza)
+3. **`sub_regions`** - 100+ neighborhoods/districts for Cairo cities
 
-Added to `users` table:
-- `city_id` (UUID, foreign key to cities)
-- `state_id` (UUID, foreign key to states)
-
-**Note:** Old text fields `city` and `state` are kept for backward compatibility.
+### User Profile Fields
+- `state_id` → Foreign key to states table
+- `city_id` → Foreign key to cities table  
+- `sub_region_id` → Foreign key to sub_regions table
+- Old fields `city` and `state` kept for backward compatibility
 
 ### 2. Backend API Routes ✅
 **File:** `backend/auth-service/auth-service/src/routes/locations.py`
