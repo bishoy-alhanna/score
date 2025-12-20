@@ -369,7 +369,7 @@ def add_family_member(family_id):
                 last_name=data.get('last_name'),
                 national_id=national_id,
                 gender=data.get('gender'),
-                birthdate=datetime.strptime(data['birthdate'], '%Y-%m-%d').date() if data.get('birthdate') else None,
+                birthdate=datetime.strptime(data.get('birthdate'), '%Y-%m-%d').date() if data.get('birthdate') else None,
                 phone_number=data.get('phone_number'),
                 church_role=data.get('church_role'),
                 family_id=family_id
@@ -392,7 +392,9 @@ def add_family_member(family_id):
                 'message': 'New family member created successfully',
                 'member': new_user.to_dict(),
                 'linked_existing': False,
-                'temporary_password': temp_password  # Include temp password for new users
+                # NOTE: Temporary password should be securely delivered to the user
+                # Consider sending via email or secure channel instead of returning in response
+                'temporary_password': temp_password
             }), 201
             
     except IntegrityError as e:

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Users, Plus, Search, UserPlus, Trash2, Edit, AlertCircle, CheckCircle } from 'lucide-react'
@@ -36,6 +37,7 @@ function FamilyManagement({ organizationId }) {
   const [nationalIdSearch, setNationalIdSearch] = useState('')
   const [existingMember, setExistingMember] = useState(null)
   const [successMessage, setSuccessMessage] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState({ show: false, type: null, familyId: null, memberId: null })
 
   // Form states
   const [familyForm, setFamilyForm] = useState({
@@ -175,14 +177,13 @@ function FamilyManagement({ organizationId }) {
   }
 
   const removeFamilyMember = async (familyId, memberId) => {
-    if (!confirm('Are you sure you want to remove this member from the family?')) return
-
     try {
       setError(null)
       await api.delete(`/families/${familyId}/members/${memberId}`, {
         params: { organization_id: organizationId }
       })
       setSuccessMessage('Member removed from family successfully!')
+      setDeleteConfirm({ show: false, type: null, familyId: null, memberId: null })
       fetchFamilies()
       setTimeout(() => setSuccessMessage(''), 3000)
     } catch (err) {
@@ -192,14 +193,13 @@ function FamilyManagement({ organizationId }) {
   }
 
   const deleteFamily = async (familyId) => {
-    if (!confirm('Are you sure you want to delete this family? All members will be unlinked.')) return
-
     try {
       setError(null)
       await api.delete(`/families/${familyId}`, {
         params: { organization_id: organizationId }
       })
       setSuccessMessage('Family deleted successfully!')
+      setDeleteConfirm({ show: false, type: null, familyId: null, memberId: null })
       fetchFamilies()
       setTimeout(() => setSuccessMessage(''), 3000)
     } catch (err) {
@@ -524,7 +524,7 @@ function FamilyManagement({ organizationId }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => deleteFamily(family.id)}
+                      onClick={() => setDeleteConfirm({ show: true, type: 'family', familyId: family.id, memberId: null })}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -558,7 +558,7 @@ function FamilyManagement({ organizationId }) {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeFamilyMember(family.id, member.id)}
+                              onClick={() => setDeleteConfirm({ show: true, type: 'member', familyId: family.id, memberId: member.id })}
                             >
                               <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
@@ -573,6 +573,38 @@ function FamilyManagement({ organizationId }) {
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirm.show} onOpenChange={(open) => !open && setDeleteConfirm({ show: false, type: null, familyId: null, memberId: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteConfirm.type === 'family' ? 'Delete Family?' : 'Remove Member?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfirm.type === 'family' 
+                ? 'Are you sure you want to delete this family? All members will be unlinked from the family. This action cannot be undone.'
+                : 'Are you sure you want to remove this member from the family? The user account will remain active but will no longer be part of this family.'
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (deleteConfirm.type === 'family') {
+                  deleteFamily(deleteConfirm.familyId)
+                } else {
+                  removeFamilyMember(deleteConfirm.familyId, deleteConfirm.memberId)
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteConfirm.type === 'family' ? 'Delete Family' : 'Remove Member'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
