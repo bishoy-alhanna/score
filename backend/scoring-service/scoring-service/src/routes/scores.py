@@ -630,7 +630,8 @@ def create_score_category():
             description=description,
             max_score=max_score,
             organization_id=organization_id,
-            created_by=user_payload['user_id']
+            created_by=user_payload['user_id'],
+            is_predefined=data.get('is_predefined', False)
         )
         
         db.session.add(category)
