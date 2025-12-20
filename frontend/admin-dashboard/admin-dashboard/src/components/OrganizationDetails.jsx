@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowLeft, Users, UserPlus, Search, Shield, UserMinus, Edit } from 'lucide-react';
+import { ArrowLeft, Users, UserPlus, Search, Shield, UserMinus, Edit, UsersIcon } from 'lucide-react';
+import FamilyManagement from './FamilyManagement';
 
 const OrganizationDetails = ({ organizationId, onBack }) => {
   const [organization, setOrganization] = useState(null);
@@ -8,6 +9,7 @@ const OrganizationDetails = ({ organizationId, onBack }) => {
   const [error, setError] = useState('');
   const [showAddMember, setShowAddMember] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('members'); // 'members' or 'families'
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState('USER');
@@ -246,16 +248,51 @@ const OrganizationDetails = ({ organizationId, onBack }) => {
         </div>
       </div>
 
-      {/* Members List */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Organization Members</h3>
-          <p className="text-sm text-gray-500">Manage users in this organization</p>
+      {/* Tab Navigation */}
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('members')}
+              className={`${
+                activeTab === 'members'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+            >
+              <Users className="h-5 w-5 mr-2" />
+              Members
+            </button>
+            <button
+              onClick={() => setActiveTab('families')}
+              className={`${
+                activeTab === 'families'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+            >
+              <UsersIcon className="h-5 w-5 mr-2" />
+              Families
+            </button>
+          </nav>
         </div>
-        
-        <div className="p-6">
-          {organization.members.length === 0 ? (
-            <div className="text-center py-8">
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'families' ? (
+        <FamilyManagement organizationId={organizationId} />
+      ) : (
+        <>
+          {/* Members List */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Organization Members</h3>
+              <p className="text-sm text-gray-500">Manage users in this organization</p>
+            </div>
+            
+            <div className="p-6">
+              {organization.members.length === 0 ? (
+                <div className="text-center py-8">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No members yet</h3>
               <p className="text-gray-500 mb-4">Add users to this organization to get started.</p>
@@ -327,6 +364,8 @@ const OrganizationDetails = ({ organizationId, onBack }) => {
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* Add Member Modal */}
       {showAddMember && (
