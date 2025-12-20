@@ -57,6 +57,7 @@ from src.routes.auth_multi_org import auth_bp
 from src.routes.organization import organization_bp
 from src.routes.super_admin import super_admin_bp
 from src.routes.profile import profile_bp
+from src.routes.locations import locations_bp
 # from src.routes.qr_code import qr_bp  # TODO: Update for multi-org
 
 # Register blueprints
@@ -64,6 +65,7 @@ app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(organization_bp, url_prefix='/api/organizations')
 app.register_blueprint(super_admin_bp, url_prefix='/api/super-admin')
 app.register_blueprint(profile_bp, url_prefix='/api/profile')
+app.register_blueprint(locations_bp, url_prefix='/api/locations')
 # app.register_blueprint(qr_bp, url_prefix='/api/qr')  # TODO: Enable when updated
 
 @app.route('/health')

@@ -65,6 +65,7 @@ def update_profile():
             'school_year', 'student_id', 'major', 'gpa', 'graduation_year',
             'university_name', 'faculty_name',
             'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
+            'city_id', 'state_id',  # New fields for dropdown selections
             'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
             'linkedin_url', 'github_url', 'personal_website',
             'timezone', 'language', 'notification_preferences', 'profile_picture_url'
