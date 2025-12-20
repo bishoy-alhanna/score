@@ -45,6 +45,7 @@ class User(db.Model):
     profile_picture_url = db.Column(db.String(500), nullable=True)
     
     # Personal Information
+    national_id = db.Column(db.String(50), unique=True, nullable=True)  # Unique identifier for family member linking
     birthdate = db.Column(db.Date, nullable=True)
     phone_number = db.Column(db.String(20), nullable=True)
     bio = db.Column(db.Text, nullable=True)
@@ -82,6 +83,12 @@ class User(db.Model):
     language = db.Column(db.String(10), nullable=True, default='en')
     notification_preferences = db.Column(db.JSON, nullable=True)  # Store as JSON for flexibility
     
+    # Church/Organization specific fields
+    church_role = db.Column(db.String(100), nullable=True)  # Role in the church (e.g., Member, Deacon, Elder, etc.)
+    
+    # Family relationship
+    family_id = db.Column(UUID(as_uuid=True), db.ForeignKey('families.id'), nullable=True)
+    
     # System fields
     is_active = db.Column(db.Boolean, default=True)
     is_verified = db.Column(db.Boolean, default=False)
@@ -107,6 +114,8 @@ class User(db.Model):
         db.Index('idx_user_school_year', 'school_year'),
         db.Index('idx_user_graduation_year', 'graduation_year'),
         db.Index('idx_user_active', 'is_active'),
+        db.Index('idx_user_national_id', 'national_id'),
+        db.Index('idx_user_family', 'family_id'),
     )
     
     def to_dict(self, include_organizations=False, include_sensitive=False):
@@ -119,6 +128,7 @@ class User(db.Model):
             'profile_picture_url': self.profile_picture_url,
             
             # Personal Information
+            'national_id': self.national_id,
             'birthdate': self.birthdate.isoformat() if self.birthdate else None,
             'phone_number': self.phone_number,
             'bio': self.bio,
@@ -142,6 +152,10 @@ class User(db.Model):
             'timezone': self.timezone,
             'language': self.language,
             'notification_preferences': self.notification_preferences,
+            
+            # Church/Organization specific
+            'church_role': self.church_role,
+            'family_id': str(self.family_id) if self.family_id else None,
             
             # System fields
             'is_active': self.is_active,
@@ -233,6 +247,63 @@ class User(db.Model):
         return (self.qr_code_token and 
                 self.qr_code_expires_at and 
                 self.qr_code_expires_at > datetime.utcnow())
+
+class Family(db.Model):
+    """Family model for grouping related members"""
+    __tablename__ = 'families'
+    
+    id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    family_name = db.Column(db.String(255), nullable=False)
+    head_of_family_id = db.Column(UUID(as_uuid=True), db.ForeignKey('users.id'), nullable=True)
+    contact_info = db.Column(db.JSON, nullable=True)  # Store contact details as JSON
+    organization_id = db.Column(UUID(as_uuid=True), db.ForeignKey('organizations.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    members = db.relationship('User', backref='family', foreign_keys='User.family_id', lazy=True)
+    head_of_family = db.relationship('User', foreign_keys=[head_of_family_id], backref='headed_family', post_update=True)
+    
+    __table_args__ = (
+        db.Index('idx_family_org', 'organization_id'),
+        db.Index('idx_family_head', 'head_of_family_id'),
+        db.Index('idx_family_name', 'family_name'),
+    )
+    
+    def to_dict(self, include_members=False):
+        result = {
+            'id': str(self.id),
+            'family_name': self.family_name,
+            'head_of_family_id': str(self.head_of_family_id) if self.head_of_family_id else None,
+            'head_of_family_name': f"{self.head_of_family.first_name} {self.head_of_family.last_name}".strip() if self.head_of_family and (self.head_of_family.first_name or self.head_of_family.last_name) else (self.head_of_family.username if self.head_of_family else None),
+            'contact_info': self.contact_info,
+            'organization_id': str(self.organization_id),
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'member_count': len([m for m in self.members if m.is_active]) if self.members else 0
+        }
+        
+        if include_members and self.members:
+            result['members'] = [
+                {
+                    'id': str(member.id),
+                    'username': member.username,
+                    'first_name': member.first_name,
+                    'last_name': member.last_name,
+                    'email': member.email,
+                    'national_id': member.national_id,
+                    'church_role': member.church_role,
+                    'gender': member.gender,
+                    'birthdate': member.birthdate.isoformat() if member.birthdate else None,
+                    'phone_number': member.phone_number,
+                    'is_active': member.is_active
+                }
+                for member in self.members if member.is_active
+            ]
+        
+        return result
 
 class UserOrganization(db.Model):
     __tablename__ = 'user_organizations'
