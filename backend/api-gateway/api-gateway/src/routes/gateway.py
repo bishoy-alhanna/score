@@ -231,12 +231,6 @@ def organizations_stats():
     """Proxy organization stats to auth service"""
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/organizations/stats')
 
-@gateway_bp.route('/organizations/filter-settings', methods=['PUT'])
-@rate_limit()
-def organizations_filter_settings():
-    """Proxy organization filter settings update to auth service"""
-    return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/organizations/filter-settings')
-
 # Super Admin routes (no authentication required for login)
 @gateway_bp.route('/super-admin/login', methods=['POST'])
 @rate_limit(max_requests=10, window=3600)  # 10 login attempts per hour
@@ -357,15 +351,24 @@ def leaderboards_routes(path=''):
     return proxy_request(current_app.config['LEADERBOARD_SERVICE_URL'], full_path)
 
 # Protected routes (require authentication)
-@gateway_bp.route('/auth/invite-user', methods=['POST'])
+#@gateway_bp.route('/auth/invite-user', methods=['POST'])
+#@rate_limit()
+#def auth_invite_user():
+#    """Proxy user invitation to auth service"""
+#    payload = verify_jwt_token()
+#    if not payload:
+#        return jsonify({'error': 'Authentication required'}), 401
+#    
+#    return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/auth/invite-user')
+@gateway_bp.route('/auth/organizations/<organization_id>/invite-user', methods=['POST'])
 @rate_limit()
-def auth_invite_user():
-    """Proxy user invitation to auth service"""
+def auth_invite_user(organization_id):
+    """Proxy organization user invitation to auth service"""
     payload = verify_jwt_token()
     if not payload:
         return jsonify({'error': 'Authentication required'}), 401
     
-    return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/auth/invite-user')
+    return proxy_request(current_app.config['AUTH_SERVICE_URL'], f'/api/auth/organizations/{organization_id}/invite-user')
 
 @gateway_bp.route('/profile', methods=['GET', 'PUT'])
 @gateway_bp.route('/profile/<path:path>', methods=['GET', 'PUT', 'POST', 'DELETE'])
