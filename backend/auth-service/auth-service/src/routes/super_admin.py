@@ -301,25 +301,12 @@ def get_organization_details(organization_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def _generate_user_qr_image(user_id, username, organization_id):
-    """Generate a long-lived QR code (PNG) for printed badges, signed the same way as self-service QR codes"""
-    secret_key = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
-    qr_payload = {
-        'user_id': str(user_id),
-        'username': username,
-        'organization_id': str(organization_id),
-        # Printed badges need to keep scanning for years, not hours
-        'exp': datetime.utcnow().timestamp() + (10 * 365 * 24 * 3600),
-        'iat': datetime.utcnow().timestamp(),
-        'type': 'qr_code'
-    }
-    qr_token = jwt.encode(qr_payload, secret_key, algorithm='HS256')
-
+def _generate_user_qr_image(user_id, organization_id):
+    """Generate a QR code (PNG) matching the payload the admin dashboard's scanner expects"""
     qr_data = {
-        'token': qr_token,
+        'type': 'score',
         'user_id': str(user_id),
-        'username': username,
-        'organization_id': str(organization_id)
+        'org_id': str(organization_id)
     }
 
     qr = qrcode.QRCode(version=1, box_size=10, border=2)
@@ -370,7 +357,7 @@ def _build_qr_codes_pdf(members, organization_id, organization_name):
         cell_x = margin + col * cell_width
         cell_top = page_height - margin - header_height - row * cell_height
 
-        qr_image = ImageReader(_generate_user_qr_image(member.id, member.username, organization_id))
+        qr_image = ImageReader(_generate_user_qr_image(member.id, organization_id))
         qr_x = cell_x + (cell_width - qr_size) / 2
         qr_y = cell_top - qr_size - 0.15 * inch
         c.drawImage(qr_image, qr_x, qr_y, width=qr_size, height=qr_size)
