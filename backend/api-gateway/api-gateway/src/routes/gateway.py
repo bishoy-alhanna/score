@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 import requests
 import jwt
 import os
@@ -15,8 +15,8 @@ def rate_limit(max_requests=100, window=3600):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            # Get client identifier (IP address)
-            client_id = request.remote_addr
+            # Get client identifier (real IP from X-Forwarded-For or remote_addr)
+            client_id = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip()
             current_time = time.time()
             
             # Clean old entries
@@ -121,6 +121,15 @@ def proxy_request(service_url, path='', method=None):
         else:
             return jsonify({'error': 'Method not allowed'}), 405
         
+        content_type = response.headers.get('Content-Type', '')
+        if 'application/json' not in content_type:
+            # Binary payload (e.g. PDF download) - pass it through untouched instead of parsing as JSON
+            passthrough_headers = {}
+            if 'Content-Disposition' in response.headers:
+                passthrough_headers['Content-Disposition'] = response.headers['Content-Disposition']
+            return Response(response.content, status=response.status_code,
+                             content_type=content_type, headers=passthrough_headers)
+
         return response.json(), response.status_code
     except requests.exceptions.RequestException as e:
         return jsonify({'error': f'Service unavailable: {str(e)}'}), 503
@@ -133,7 +142,7 @@ def auth_register():
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/auth/register')
 
 @gateway_bp.route('/auth/login', methods=['POST'])
-@rate_limit(max_requests=20, window=3600)  # 20 login attempts per hour
+@rate_limit(max_requests=200, window=3600)  # 200 login attempts per hour
 def auth_login():
     """Proxy login to auth service"""
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/auth/login')
@@ -224,6 +233,12 @@ def organizations_update():
 def organizations_users():
     """Proxy organization users to auth service"""
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/organizations/users')
+
+@gateway_bp.route('/organizations/filter-settings', methods=['PUT'])
+@rate_limit()
+def organizations_filter_settings():
+    """Proxy organization filter settings update to auth service"""
+    return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/organizations/filter-settings')
 
 @gateway_bp.route('/organizations/stats', methods=['GET'])
 @rate_limit()
@@ -370,6 +385,16 @@ def auth_invite_user(organization_id):
     
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], f'/api/auth/organizations/{organization_id}/invite-user')
 
+@gateway_bp.route('/auth/organizations/<organization_id>/bulk-add-users', methods=['POST'])
+@rate_limit(max_requests=500, window=3600)  # Higher limit for bulk operations
+def auth_bulk_add_users(organization_id):
+    """Proxy bulk user addition to auth service"""
+    payload = verify_jwt_token()
+    if not payload:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    return proxy_request(current_app.config['AUTH_SERVICE_URL'], f'/api/auth/organizations/{organization_id}/bulk-add-users')
+
 @gateway_bp.route('/profile', methods=['GET', 'PUT'])
 @gateway_bp.route('/profile/<path:path>', methods=['GET', 'PUT', 'POST', 'DELETE'])
 @rate_limit()
@@ -430,4 +455,17 @@ def health_check_services():
 def qr_verify_proxy():
     """Proxy QR verification to auth service"""
     return proxy_request(current_app.config['AUTH_SERVICE_URL'], '/api/auth/verify-qr')
+
+# Servant management routes
+@gateway_bp.route('/servants', methods=['GET'])
+@gateway_bp.route('/servants/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@rate_limit()
+def servants_routes(path=''):
+    """Proxy servant requests to auth service"""
+    payload = verify_jwt_token()
+    if not payload:
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    full_path = f'/api/servants/{path}' if path else '/api/servants'
+    return proxy_request(current_app.config['AUTH_SERVICE_URL'], full_path)
 
