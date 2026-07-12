@@ -11,7 +11,9 @@ import secrets
 import requests
 import uuid
 from decimal import Decimal
-import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 def safe_serialize(obj):
     """Safely serialize objects that might contain UUIDs or datetimes"""
@@ -34,9 +36,6 @@ def safe_jsonify(data):
     """Safe jsonify that handles UUIDs and datetimes"""
     serialized_data = safe_serialize(data)
     return jsonify(serialized_data)
-
-# STARTUP DEBUG
-print("🔥 AUTH_MULTI_ORG.PY LOADED!", flush=True)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -244,11 +243,8 @@ def verify():
 def login():
     """Login endpoint supporting multi-organization selection"""
     try:
-        import sys
-        print(f"DEBUG: Login endpoint called", file=sys.stderr, flush=True)
         data = request.get_json()
-        print(f"DEBUG: Login data received: {data}", file=sys.stderr, flush=True)
-        
+
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
@@ -256,8 +252,7 @@ def login():
         username = data.get('username')
         password = data.get('password')
         organization_name = data.get('organization_name')
-        
-        print(f"DEBUG: Processing login for username: {username}, org: {organization_name}", file=sys.stderr, flush=True)
+        organization_id_input = data.get('organization_id')  # Support organization_id from frontend
         
         if not username or not password:
             return jsonify({'error': 'Username and password are required'}), 400
@@ -268,20 +263,30 @@ def login():
         if not user or not user.verify_password(password):
             return jsonify({'error': 'Invalid username or password'}), 401
         
-        print(f"DEBUG: User authenticated: {user.username}", file=sys.stderr, flush=True)
-        
         # Get user's active organization memberships
         user_organizations = UserOrganization.query.filter_by(
             user_id=user.id,
             is_active=True
         ).join(Organization).filter(Organization.is_active == True).all()
         
-        print(f"DEBUG: User orgs: {[(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]}", file=sys.stderr, flush=True)
-        
         organization_id = None
+
+        # If user provided organization_id directly, find the matching organization
+        if organization_id_input and user_organizations:
+            user_org_membership = next(
+                (uo for uo in user_organizations if str(uo.organization_id) == organization_id_input), 
+                None
+            )
+            if user_org_membership:
+                organization_id = str(user_org_membership.organization_id)
+            else:
+                return jsonify({
+                    'error': f'You are not a member of the specified organization. Please select one of your organizations.',
+                    'invalid_organization': True
+                }), 403
         
         # If user specified an organization name and is not a member, create join request
-        if organization_name and not user_organizations:
+        elif organization_name and not user_organizations:
             organization = Organization.query.filter_by(name=organization_name, is_active=True).first()
             if organization:
                 # Check if there's already a pending request
@@ -322,23 +327,16 @@ def login():
         
         # If user specified an organization name and IS a member, find the matching organization
         elif organization_name and user_organizations:
-            print(f"DEBUG: Looking for org name match: '{organization_name}'", file=sys.stderr, flush=True)
-            # Find the organization by name among user's memberships
             user_org_membership = next(
                 (uo for uo in user_organizations if uo.organization.name == organization_name), 
                 None
             )
             if user_org_membership:
                 organization_id = str(user_org_membership.organization_id)
-                print(f"DEBUG: Found matching org by name: {organization_name} -> {organization_id}", file=sys.stderr, flush=True)
             else:
-                print(f"DEBUG: No matching org found for name: {organization_name}", file=sys.stderr, flush=True)
-                print(f"DEBUG: Available orgs: {[(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]}", file=sys.stderr, flush=True)
                 return jsonify({
                     'error': f'You are not a member of "{organization_name}". Please select one of your organizations.',
-                    'invalid_organization': True,
-                    'debug_searched_name': organization_name,
-                    'debug_available_orgs': [(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]
+                    'invalid_organization': True
                 }), 403
         
         if not user_organizations:
@@ -349,25 +347,18 @@ def login():
         # If organization_id was provided and validated, use it
         # Otherwise, use the first organization the user belongs to
         final_organization_id = organization_id if organization_id else user_organizations[0].organization_id
-        
-        print(f"DEBUG: Final organization_id: {final_organization_id}", file=sys.stderr, flush=True)
-        
-        # Generate JWT token with the validated organization ID
+
         token = generate_jwt_token(user, final_organization_id)
-        
+
         return jsonify({
             'message': 'Login successful',
             'token': token,
             'user': user.to_dict(include_organizations=True),
-            'organization_id': str(final_organization_id),
-            'debug_org_name': organization_name,
-            'debug_org_id': organization_id,
-            'debug_final': str(final_organization_id),
-            'debug_available_orgs': [(uo.organization.name, str(uo.organization_id)) for uo in user_organizations]
+            'organization_id': str(final_organization_id)
         }), 200
-        
+
     except Exception as e:
-        print(f"DEBUG: Login error: {str(e)}", file=sys.stderr, flush=True)
+        logger.error('Login error: %s', e, exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @auth_bp.route('/create-organization', methods=['POST'])
@@ -434,9 +425,9 @@ def create_organization():
                 timeout=5
             )
             if response.status_code != 201:
-                print(f"Warning: Failed to create predefined categories: {response.text}")
+                logger.warning('Failed to create predefined categories: %s', response.text)
         except Exception as e:
-            print(f"Warning: Could not create predefined categories: {str(e)}")
+            logger.warning('Could not create predefined categories: %s', e)
         
         # Generate new JWT token with organization context
         token = generate_jwt_token(user, organization.id)
@@ -893,6 +884,264 @@ def get_organization_join_requests(organization_id):
         }), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/organizations/<organization_id>/invite-user', methods=['POST'])
+def invite_user_to_organization(organization_id):
+    """Invite a user to join an organization"""
+    try:
+        # Verify user is authenticated
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        secret_key = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
+        
+        try:
+            payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+            current_user_id = payload['user_id']
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+        
+        # Check if user is admin of this organization
+        current_user_org = UserOrganization.query.filter_by(
+            user_id=current_user_id,
+            organization_id=organization_id,
+            is_active=True
+        ).first()
+        
+        if not current_user_org or current_user_org.role not in ['ORG_ADMIN', 'SUPER_ADMIN']:
+            return jsonify({'error': 'Access denied - admin rights required'}), 403
+        
+        # Get invitation data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        email = data.get('email')
+        role = data.get('role', 'USER')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        # Validate role
+        valid_roles = ['USER', 'ORG_ADMIN', 'SUPER_ADMIN']
+        if role not in valid_roles:
+            return jsonify({'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}), 400
+        
+        # Check if user already exists with this email
+        existing_user = User.query.filter_by(email=email).first()
+        
+        if existing_user:
+            # Check if user is already a member of this organization
+            existing_membership = UserOrganization.query.filter_by(
+                user_id=existing_user.id,
+                organization_id=organization_id
+            ).first()
+            
+            if existing_membership and existing_membership.is_active:
+                return jsonify({'error': 'User is already a member of this organization'}), 400
+        
+        # Check if there's already a pending invitation
+        existing_invitation = OrganizationInvitation.query.filter_by(
+            email=email,
+            organization_id=organization_id,
+            status='PENDING'
+        ).first()
+        
+        if existing_invitation:
+            return jsonify({'error': 'An invitation has already been sent to this email'}), 400
+        
+        # Create invitation
+        invitation = OrganizationInvitation(
+            organization_id=organization_id,
+            email=email,
+            role=role,
+            invited_by=current_user_id,
+            token=secrets.token_urlsafe(32),
+            expires_at=datetime.utcnow() + timedelta(days=7)
+        )
+        
+        db.session.add(invitation)
+        db.session.commit()
+        
+        # Get organization details for the response
+        organization = Organization.query.get(organization_id)
+        
+        return jsonify({
+            'message': 'Invitation sent successfully',
+            'invitation': {
+                'id': str(invitation.id),
+                'email': invitation.email,
+                'role': invitation.role,
+                'organization_name': organization.name if organization else None,
+                'expires_at': invitation.expires_at.isoformat(),
+                'status': invitation.status
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Error inviting user: %s', e, exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/organizations/<organization_id>/bulk-add-users', methods=['POST'])
+def bulk_add_users_to_organization(organization_id):
+    """Add multiple users to organization directly (no invitation needed)"""
+    try:
+        # Verify user is authenticated
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        secret_key = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
+        
+        try:
+            payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+            current_user_id = payload['user_id']
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Invalid token'}), 401
+        
+        # Check if user is admin of this organization
+        current_user_org = UserOrganization.query.filter_by(
+            user_id=current_user_id,
+            organization_id=organization_id,
+            is_active=True
+        ).first()
+        
+        if not current_user_org or current_user_org.role not in ['ORG_ADMIN', 'SUPER_ADMIN']:
+            return jsonify({'error': 'Access denied - admin rights required'}), 403
+        
+        # Get users data
+        data = request.get_json()
+        if not data or 'users' not in data:
+            return jsonify({'error': 'Users array is required'}), 400
+        
+        users_data = data.get('users', [])
+        if not isinstance(users_data, list) or len(users_data) == 0:
+            return jsonify({'error': 'Users must be a non-empty array'}), 400
+        
+        created_users = []
+        skipped_users = []
+        errors = []
+        
+        for user_info in users_data:
+            try:
+                username = user_info.get('username')
+                email = user_info.get('email')
+                password = user_info.get('password')
+                first_name = user_info.get('first_name', '')
+                last_name = user_info.get('last_name', '')
+                role = user_info.get('role', 'USER')
+                
+                # Validate required fields
+                if not username or not email or not password:
+                    errors.append({
+                        'email': email or 'unknown',
+                        'error': 'Username, email, and password are required'
+                    })
+                    continue
+                
+                # Validate role
+                valid_roles = ['USER', 'ORG_ADMIN', 'SUPER_ADMIN']
+                if role not in valid_roles:
+                    errors.append({
+                        'email': email,
+                        'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'
+                    })
+                    continue
+                
+                # Check if user already exists
+                existing_user = User.query.filter(
+                    (User.username == username) | (User.email == email)
+                ).first()
+                
+                if existing_user:
+                    # Check if already member of this organization
+                    existing_membership = UserOrganization.query.filter_by(
+                        user_id=existing_user.id,
+                        organization_id=organization_id
+                    ).first()
+                    
+                    if existing_membership:
+                        skipped_users.append({
+                            'username': username,
+                            'email': email,
+                            'reason': 'Already a member of this organization'
+                        })
+                        continue
+                    else:
+                        # Add existing user to organization
+                        user_org = UserOrganization(
+                            user_id=existing_user.id,
+                            organization_id=organization_id,
+                            role=role,
+                            is_active=True
+                        )
+                        db.session.add(user_org)
+                        created_users.append({
+                            'username': existing_user.username,
+                            'email': existing_user.email,
+                            'id': str(existing_user.id),
+                            'status': 'added_to_organization'
+                        })
+                else:
+                    # Create new user
+                    new_user = User(
+                        username=username,
+                        email=email,
+                        password_hash=User.hash_password(password),  # Use bcrypt hashing
+                        first_name=first_name,
+                        last_name=last_name,
+                        is_active=True
+                    )
+                    db.session.add(new_user)
+                    db.session.flush()  # Get the user ID
+                    
+                    # Add user to organization
+                    user_org = UserOrganization(
+                        user_id=new_user.id,
+                        organization_id=organization_id,
+                        role=role,
+                        is_active=True
+                    )
+                    db.session.add(user_org)
+                    
+                    created_users.append({
+                        'username': new_user.username,
+                        'email': new_user.email,
+                        'id': str(new_user.id),
+                        'status': 'created'
+                    })
+                    
+            except Exception as user_error:
+                errors.append({
+                    'email': user_info.get('email', 'unknown'),
+                    'error': str(user_error)
+                })
+                continue
+        
+        # Commit all changes
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Successfully processed {len(created_users)} users',
+            'created': created_users,
+            'skipped': skipped_users,
+            'errors': errors,
+            'summary': {
+                'total': len(users_data),
+                'success': len(created_users),
+                'skipped': len(skipped_users),
+                'failed': len(errors)
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Error bulk adding users: %s', e, exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @auth_bp.route('/organizations/<organization_id>/join-requests/<request_id>/approve', methods=['POST'])

@@ -238,3 +238,104 @@ def invite_user():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@auth_bp.route('/organizations/<organization_id>/invite-user', methods=['POST'])
+def invite_user_to_organization(organization_id):
+    """Invite a user to join an organization"""
+    try:
+        # Verify admin permissions
+        payload = verify_jwt_token()
+        if not payload:
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # Verify user is admin of this organization
+        user_id = payload.get('user_id')
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is admin
+        cur.execute("""
+            SELECT role FROM organization_members 
+            WHERE user_id = %s AND organization_id = %s
+        """, (user_id, organization_id))
+        
+        result = cur.fetchone()
+        if not result or result[0] not in ['ADMIN', 'OWNER']:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        # Get invitation data
+        data = request.get_json()
+        email = data.get('email')
+        name = data.get('name')
+        role = data.get('role', 'USER')
+        
+        if not email:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Email is required'}), 400
+        
+        # Check if user already exists
+        cur.execute("SELECT id FROM users WHERE username = %s", (email,))
+        existing_user = cur.fetchone()
+        
+        if existing_user:
+            # Add existing user to organization
+            user_to_add_id = existing_user[0]
+            
+            # Check if already a member
+            cur.execute("""
+                SELECT id FROM organization_members 
+                WHERE user_id = %s AND organization_id = %s
+            """, (user_to_add_id, organization_id))
+            
+            if cur.fetchone():
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'User is already a member'}), 400
+            
+            # Add to organization
+            cur.execute("""
+                INSERT INTO organization_members (user_id, organization_id, role, joined_at)
+                VALUES (%s, %s, %s, NOW())
+            """, (user_to_add_id, organization_id, role))
+            
+            conn.commit()
+            cur.close()
+            conn.close()
+            
+            return jsonify({
+                'message': 'User added to organization',
+                'user_id': user_to_add_id
+            }), 200
+        else:
+            # Create invitation for new user
+            import secrets
+            invitation_token = secrets.token_urlsafe(32)
+            
+            cur.execute("""
+                INSERT INTO user_invitations (
+                    organization_id, email, name, role, invitation_token, 
+                    invited_by, created_at, expires_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW() + INTERVAL '7 days')
+                RETURNING id
+            """, (organization_id, email, name, role, invitation_token, user_id))
+            
+            invitation_id = cur.fetchone()[0]
+            conn.commit()
+            
+            # TODO: Send invitation email
+            # send_invitation_email(email, invitation_token, organization_id)
+            
+            cur.close()
+            conn.close()
+            
+            return jsonify({
+                'message': 'Invitation sent',
+                'invitation_id': invitation_id,
+                'invitation_token': invitation_token
+            }), 201
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

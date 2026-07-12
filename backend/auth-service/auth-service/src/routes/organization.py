@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
 import jwt
-from datetime import datetime
 from src.models.database_multi_org import db, Organization, User
 import os
+from datetime import datetime as dt
 
 organization_bp = Blueprint('organization', __name__)
 
@@ -120,6 +120,52 @@ def get_organization_users():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@organization_bp.route('/filter-settings', methods=['PUT'])
+def update_filter_settings():
+    """Update organization leaderboard date filter settings (ORG_ADMIN only)"""
+    try:
+        user, error, status_code = verify_token_and_get_user()
+        if error:
+            return jsonify(error), status_code
+
+        current_membership = user.organization_memberships[0] if user.organization_memberships else None
+        if not current_membership:
+            return jsonify({'error': 'User is not a member of any organization'}), 400
+
+        if current_membership.role != 'ORG_ADMIN':
+            return jsonify({'error': 'Only organization admins can update filter settings'}), 403
+
+        data = request.get_json()
+        organization = current_membership.organization
+
+        filter_enabled = data.get('filter_enabled', False)
+        start_date_str = data.get('filter_start_date')
+        end_date_str = data.get('filter_end_date')
+
+        start_date = dt.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
+        end_date = dt.strptime(end_date_str, '%Y-%m-%d').date() if end_date_str else None
+
+        if filter_enabled:
+            if not start_date or not end_date:
+                return jsonify({'error': 'Both start date and end date are required when filter is enabled'}), 400
+            if start_date >= end_date:
+                return jsonify({'error': 'Start date must be before end date'}), 400
+
+        organization.filter_enabled = filter_enabled
+        organization.filter_start_date = start_date
+        organization.filter_end_date = end_date
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Filter settings updated successfully',
+            'organization': organization.to_dict()
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @organization_bp.route('/stats', methods=['GET'])
 def get_organization_stats():
     """Get organization statistics"""
@@ -170,51 +216,4 @@ def get_organization_stats():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@organization_bp.route('/filter-settings', methods=['PUT'])
-def update_filter_settings():
-    """Update organization global filter settings (ORG_ADMIN only)"""
-    try:
-        user, error, status_code = verify_token_and_get_user()
-        if error:
-            return jsonify(error), status_code
-        
-        # Get user's current organization membership and check role
-        current_membership = user.organization_memberships[0] if user.organization_memberships else None
-        if not current_membership:
-            return jsonify({'error': 'User is not a member of any organization'}), 400
-        
-        if current_membership.role != 'ORG_ADMIN':
-            return jsonify({'error': 'Only organization admins can update filter settings'}), 403
-        
-        data = request.get_json()
-        organization = current_membership.organization
-        
-        # Update filter settings
-        if 'filter_enabled' in data:
-            organization.filter_enabled = bool(data['filter_enabled'])
-        
-        if 'filter_start_date' in data:
-            if data['filter_start_date']:
-                organization.filter_start_date = datetime.strptime(data['filter_start_date'], '%Y-%m-%d').date()
-            else:
-                organization.filter_start_date = None
-        
-        if 'filter_end_date' in data:
-            if data['filter_end_date']:
-                organization.filter_end_date = datetime.strptime(data['filter_end_date'], '%Y-%m-%d').date()
-            else:
-                organization.filter_end_date = None
-        
-        db.session.commit()
-        
-        return jsonify({
-            'message': 'Filter settings updated successfully',
-            'organization': organization.to_dict()
-        }), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
 

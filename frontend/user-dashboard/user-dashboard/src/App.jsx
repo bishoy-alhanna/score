@@ -483,8 +483,10 @@ function Dashboard() {
   const [weeklyData, setWeeklyData] = useState([])
   const [categories, setCategories] = useState([])
   const [chartLoading, setChartLoading] = useState(true)
-  const [orgFilterSettings, setOrgFilterSettings] = useState(null)
   
+  // Organization date filter settings
+  const [orgFilterSettings, setOrgFilterSettings] = useState({ filter_enabled: false, filter_start_date: null, filter_end_date: null })
+
   // Self-reporting state
   const [predefinedCategories, setPredefinedCategories] = useState([])
   const [selfReportData, setSelfReportData] = useState({
@@ -497,32 +499,12 @@ function Dashboard() {
 
   useEffect(() => {
     if (currentOrganization?.organization_id) {
-      fetchOrganizationFilterSettings()
       fetchDashboardData()
       fetchWeeklyData()
       fetchPredefinedCategories()
+      fetchOrganizationFilterSettings()
     }
   }, [currentOrganization])
-
-  const fetchOrganizationFilterSettings = async () => {
-    try {
-      const response = await api.get('/organizations')
-      const org = response.data
-      
-      if (org.filter_enabled) {
-        setOrgFilterSettings({
-          enabled: true,
-          start_date: org.filter_start_date,
-          end_date: org.filter_end_date
-        })
-      } else {
-        setOrgFilterSettings({ enabled: false })
-      }
-    } catch (error) {
-      console.error('Failed to fetch organization filter settings:', error)
-      setOrgFilterSettings({ enabled: false })
-    }
-  }
 
   useEffect(() => {
     // Load full leaderboard data on component mount
@@ -530,6 +512,22 @@ function Dashboard() {
       fetchFullLeaderboard()
     }
   }, [currentOrganization])
+
+  const fetchOrganizationFilterSettings = async () => {
+    try {
+      const response = await api.get('/organizations/')
+      const org = response.data.organization
+      if (org) {
+        setOrgFilterSettings({
+          filter_enabled: org.filter_enabled || false,
+          filter_start_date: org.filter_start_date || null,
+          filter_end_date: org.filter_end_date || null,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to fetch organization filter settings:', error)
+    }
+  }
 
   const fetchDashboardData = async () => {
     if (!currentOrganization?.organization_id) return
@@ -797,10 +795,10 @@ function Dashboard() {
             </CardTitle>
             <CardDescription>
               {t('dashboard.topPerformers')}
-              {orgFilterSettings?.enabled && (
-                <div className="mt-2 text-xs text-blue-600 font-medium">
-                  📅 Filtered: {orgFilterSettings.start_date || 'Start'} to {orgFilterSettings.end_date || 'End'}
-                </div>
+              {orgFilterSettings.filter_enabled && orgFilterSettings.filter_start_date && orgFilterSettings.filter_end_date && (
+                <span className="ml-2 text-blue-600 font-medium">
+                  📅 Filtered: {orgFilterSettings.filter_start_date} to {orgFilterSettings.filter_end_date}
+                </span>
               )}
             </CardDescription>
           </CardHeader>
@@ -961,9 +959,261 @@ function Profile() {
   )
 }
 
+// Leaderboard component
+function Leaderboard() {
+  const { user, currentOrganization } = useAuth()
+  const { t } = useTranslation()
+
+  const [activeTab, setActiveTab] = useState('users')
+  const [categories, setCategories] = useState(['all'])
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [userLeaderboard, setUserLeaderboard] = useState([])
+  const [groupLeaderboard, setGroupLeaderboard] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [orgFilter, setOrgFilter] = useState(null)
+  const [myRank, setMyRank] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id) {
+      fetchCategories()
+      fetchOrgFilter()
+    }
+  }, [currentOrganization])
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id) {
+      fetchLeaderboards()
+    }
+  }, [currentOrganization, selectedCategory, activeTab])
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/leaderboards/categories')
+      setCategories(res.data.categories || ['all'])
+    } catch {
+      setCategories(['all'])
+    }
+  }
+
+  const fetchOrgFilter = async () => {
+    try {
+      const res = await api.get('/organizations/')
+      const org = res.data.organization
+      if (org?.filter_enabled && org.filter_start_date && org.filter_end_date) {
+        setOrgFilter({ start: org.filter_start_date, end: org.filter_end_date })
+      } else {
+        setOrgFilter(null)
+      }
+    } catch {
+      // non-critical, ignore
+    }
+  }
+
+  const fetchLeaderboards = async () => {
+    if (!currentOrganization?.organization_id) return
+    setLoading(true)
+    setError('')
+    try {
+      if (activeTab === 'users') {
+        const res = await api.get(`/leaderboards/users?limit=100&category=${selectedCategory}`)
+        const list = res.data.leaderboard || []
+        setUserLeaderboard(list)
+        const mine = list.find(e => e.user_id === user?.id)
+        setMyRank(mine ? mine.rank : null)
+      } else {
+        const res = await api.get(`/leaderboards/groups?limit=100&category=${selectedCategory}`)
+        setGroupLeaderboard(res.data.leaderboard || [])
+      }
+    } catch {
+      setError('Failed to load leaderboard. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const medalIcon = (rank) => {
+    if (rank === 1) return <Medal className="h-5 w-5 text-yellow-500" />
+    if (rank === 2) return <Medal className="h-5 w-5 text-gray-400" />
+    if (rank === 3) return <Medal className="h-5 w-5 text-amber-600" />
+    return <span className="text-sm font-bold text-gray-500 w-5 text-center">{rank}</span>
+  }
+
+  const rankBg = (rank, isMe) => {
+    if (isMe) return 'bg-blue-50 border-2 border-blue-300'
+    if (rank === 1) return 'bg-yellow-50 border border-yellow-200'
+    if (rank === 2) return 'bg-gray-50 border border-gray-200'
+    if (rank === 3) return 'bg-amber-50 border border-amber-200'
+    return 'border border-gray-100'
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-yellow-500" />
+            {t('leaderboard.title')}
+          </h2>
+          {orgFilter && (
+            <p className="text-sm text-blue-600 mt-1">
+              📅 Filtered: {orgFilter.start} to {orgFilter.end}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600">Category:</label>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map(cat => (
+                <SelectItem key={cat} value={cat}>
+                  {cat === 'all' ? 'All Categories' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={fetchLeaderboards} disabled={loading}>
+            ↻
+          </Button>
+        </div>
+      </div>
+
+      {/* My rank banner */}
+      {activeTab === 'users' && myRank && (
+        <div className="flex items-center justify-between bg-blue-600 text-white rounded-lg px-4 py-3">
+          <span className="font-medium">Your rank</span>
+          <span className="text-2xl font-bold">#{myRank}</span>
+          <span className="text-blue-200 text-sm">{userLeaderboard.length} participants</span>
+        </div>
+      )}
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Users / Groups tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="users">
+            <User className="h-4 w-4 mr-2" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="groups">
+            <Users className="h-4 w-4 mr-2" />
+            Groups
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="mt-4">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner text="Loading leaderboard..." />
+            </div>
+          ) : userLeaderboard.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Trophy className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+              <p>No scores recorded yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {userLeaderboard.map(entry => {
+                const isMe = entry.user_id === user?.id
+                const initials = ((entry.first_name?.[0] || '') + (entry.last_name?.[0] || '')).toUpperCase() || entry.username?.[0]?.toUpperCase() || '?'
+                return (
+                  <div key={entry.user_id} className={`flex items-center gap-3 p-3 rounded-lg ${rankBg(entry.rank, isMe)}`}>
+                    {/* Rank */}
+                    <div className="w-6 flex justify-center shrink-0">
+                      {medalIcon(entry.rank)}
+                    </div>
+
+                    {/* Avatar */}
+                    <Avatar className="h-9 w-9 shrink-0">
+                      {entry.profile_picture_url ? (
+                        <AvatarImage
+                          src={entry.profile_picture_url.startsWith('http') ? entry.profile_picture_url : `${window.location.origin}${entry.profile_picture_url}`}
+                          alt={entry.display_name}
+                        />
+                      ) : null}
+                      <AvatarFallback className="text-xs font-bold">{initials}</AvatarFallback>
+                    </Avatar>
+
+                    {/* Name */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
+                        {isMe ? (
+                          <span className="text-blue-700">{entry.display_name || entry.username} <span className="text-xs font-normal">(You)</span></span>
+                        ) : (
+                          entry.display_name || entry.username || `User ${entry.user_id?.slice(0, 8)}`
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-500">{entry.score_count} scores</p>
+                    </div>
+
+                    {/* Score */}
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-lg leading-none">{entry.total_score}</p>
+                      <p className="text-xs text-gray-400">pts</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="groups" className="mt-4">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner text="Loading leaderboard..." />
+            </div>
+          ) : groupLeaderboard.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <Users className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+              <p>No group scores recorded yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {groupLeaderboard.map(entry => (
+                <div key={entry.group_id} className={`flex items-center gap-3 p-3 rounded-lg ${rankBg(entry.rank, false)}`}>
+                  {/* Rank */}
+                  <div className="w-6 flex justify-center shrink-0">
+                    {medalIcon(entry.rank)}
+                  </div>
+
+                  {/* Icon */}
+                  <div className="h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                    <Users className="h-4 w-4 text-indigo-600" />
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{entry.name}</p>
+                    <p className="text-xs text-gray-500">{entry.member_count} members · {entry.score_count} scores</p>
+                  </div>
+
+                  {/* Score */}
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-lg leading-none">{entry.total_score}</p>
+                    <p className="text-xs text-gray-400">pts</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
 // Main app component
 function App() {
-  console.log('App component rendering')
   return (
     <ErrorBoundary>
       <TranslationWrapper>
@@ -978,43 +1228,16 @@ function App() {
 }
 
 function AppContent() {
-  console.log('AppContent component rendering')
   const { user, loading } = useAuth()
   const { t } = useTranslation()
-  const [leaderboard, setLeaderboard] = useState([])
-  const [leaderboardLoading, setLeaderboardLoading] = useState(false)
-
-  // Fetch leaderboard data for the leaderboard tab
-  useEffect(() => {
-    if (user) {
-      fetchLeaderboard()
-    }
-  }, [user])
-
-  const fetchLeaderboard = async () => {
-    try {
-      setLeaderboardLoading(true)
-      const response = await api.get('/leaderboards/users?limit=50&category=all')
-      setLeaderboard(response.data.leaderboard || [])
-    } catch (error) {
-      console.error('Error fetching leaderboard:', error)
-    } finally {
-      setLeaderboardLoading(false)
-    }
-  }
-
-  console.log('AppContent render - loading:', loading, 'user:', user ? 'exists' : 'null')
 
   if (loading) {
-    console.log('Showing loading spinner')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <LoadingSpinner size="xl" text="Loading application..." />
       </div>
     )
   }
-
-  console.log('Loading complete, showing', user ? 'dashboard' : 'login')
 
   if (!user) {
     return <Login />
@@ -1028,94 +1251,15 @@ function AppContent() {
           <TabsTrigger value="leaderboard">{t('navigation.leaderboard')}</TabsTrigger>
           <TabsTrigger value="profile">{t('navigation.profile')}</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="dashboard" className="mt-6">
           <Dashboard />
         </TabsContent>
-        
+
         <TabsContent value="leaderboard" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Trophy className="h-5 w-5 mr-2 text-yellow-500" />
-                {t('leaderboard.title')}
-              </CardTitle>
-              <CardDescription>
-                {t('dashboard.topPerformers')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {leaderboardLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {leaderboard.map((player, index) => {
-                    const isCurrentUser = user?.id === player.user_id
-                    const rankColors = {
-                      0: 'bg-yellow-100 border-yellow-300',
-                      1: 'bg-gray-100 border-gray-300',
-                      2: 'bg-orange-100 border-orange-300'
-                    }
-                    
-                    return (
-                      <div
-                        key={player.user_id}
-                        className={`flex items-center justify-between p-4 rounded-lg border-2 ${
-                          isCurrentUser 
-                            ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' 
-                            : rankColors[index] || 'bg-white border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-4">
-                          <div className="flex-shrink-0">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                              index === 0 ? 'bg-yellow-400 text-yellow-900' :
-                              index === 1 ? 'bg-gray-400 text-gray-900' :
-                              index === 2 ? 'bg-orange-400 text-orange-900' :
-                              'bg-gray-200 text-gray-700'
-                            }`}>
-                              {index + 1}
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarImage 
-                                src={player.profile_picture_url || `https://api.dicebear.com/7.x/initials/svg?seed=${player.display_name}`} 
-                                alt={player.display_name} 
-                              />
-                              <AvatarFallback>{player.display_name?.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium">
-                                {player.display_name}
-                                {isCurrentUser && (
-                                  <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
-                                    You
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-primary">
-                            {(player.average_score ?? 0).toFixed(1)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {player.score_count ?? 0} {player.score_count === 1 ? 'score' : 'scores'}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <Leaderboard />
         </TabsContent>
-        
+
         <TabsContent value="profile" className="mt-6">
           <Profile />
         </TabsContent>

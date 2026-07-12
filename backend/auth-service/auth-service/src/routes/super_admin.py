@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 import jwt
+import logging
 from sqlalchemy.orm import joinedload
 from src.models.database_multi_org import (
-    db, User, Organization, UserOrganization, 
+    db, User, Organization, UserOrganization,
     OrganizationJoinRequest, SuperAdminConfig
 )
 import os
@@ -11,6 +12,7 @@ from datetime import datetime
 import bcrypt
 
 super_admin_bp = Blueprint('super_admin', __name__)
+logger = logging.getLogger(__name__)
 
 def safe_serialize(obj):
     """Safely serialize objects that might contain UUIDs or datetimes"""
@@ -247,22 +249,14 @@ def debug_test():
 @super_admin_bp.route('/organizations/<organization_id>/details', methods=['GET'])
 def get_organization_details(organization_id):
     """Get detailed organization information with members"""
-    print(f"DEBUG: Details endpoint hit with organization_id: {organization_id}")
     admin = verify_super_admin_token()
     if not admin:
         return jsonify({'error': 'Super admin authentication required'}), 401
-    
+
     try:
-        # Debug logging
-        print(f"DEBUG: Looking for organization with ID: {organization_id}")
-        
-        # Try to find organization by ID (handles both UUID and string)
         organization = Organization.query.filter_by(id=organization_id).first()
         if not organization:
-            print(f"DEBUG: Organization not found with ID: {organization_id}")
             return jsonify({'error': 'Organization not found'}), 404
-        
-        print(f"DEBUG: Found organization: {organization.name}")
         
         # Get organization members with their roles
         members = db.session.query(

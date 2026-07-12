@@ -26,7 +26,8 @@ try:
     redis_client.ping()  # Test connection
     app.config['REDIS_CLIENT'] = redis_client
 except:
-    print("Warning: Redis connection failed, using in-memory cache")
+    import logging
+    logging.getLogger(__name__).warning('Redis connection failed, using in-memory cache')
     app.config['REDIS_CLIENT'] = None
 
 # Initialize database

@@ -1,11 +1,13 @@
 from flask import Blueprint, request, jsonify
 import jwt
+import logging
 from src.models.database_multi_org import db, User, UserOrganization
 import os
 from datetime import datetime, date
 from sqlalchemy.exc import IntegrityError
 
 profile_bp = Blueprint('profile', __name__)
+logger = logging.getLogger(__name__)
 
 def verify_token():
     """Verify JWT token and return user"""
@@ -65,6 +67,7 @@ def update_profile():
             'school_year', 'student_id', 'major', 'gpa', 'graduation_year',
             'university_name', 'faculty_name',
             'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country',
+            'city_id', 'state_id', 'sub_region_id',  # Location dropdowns
             'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
             'linkedin_url', 'github_url', 'personal_website',
             'timezone', 'language', 'notification_preferences', 'profile_picture_url'
@@ -216,10 +219,6 @@ def upload_profile_picture():
     if not user:
         return jsonify({'error': 'Authentication required'}), 401
     
-    print(f"DEBUG: request.files keys: {list(request.files.keys())}")
-    print(f"DEBUG: request.form keys: {list(request.form.keys())}")
-    print(f"DEBUG: request content type: {request.content_type}")
-    
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     
@@ -281,7 +280,7 @@ def upload_profile_picture():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error uploading profile picture: {str(e)}")
+        logger.error('Error uploading profile picture: %s', e, exc_info=True)
         return jsonify({'error': 'Failed to process image'}), 500
 
 @profile_bp.route('/picture/<filename>', methods=['GET'])
@@ -419,5 +418,5 @@ def get_organization_users():
         })
         
     except Exception as e:
-        print(f"Error fetching organization users: {str(e)}")
+        logger.error('Error fetching organization users: %s', e, exc_info=True)
         return jsonify({'error': 'Failed to fetch users'}), 500

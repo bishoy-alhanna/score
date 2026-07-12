@@ -57,6 +57,8 @@ from src.routes.auth_multi_org import auth_bp
 from src.routes.organization import organization_bp
 from src.routes.super_admin import super_admin_bp
 from src.routes.profile import profile_bp
+# from src.routes.locations import locations_bp  # TODO: Add locations feature
+from src.routes.servants import servant_bp
 # from src.routes.qr_code import qr_bp  # TODO: Update for multi-org
 
 # Register blueprints
@@ -64,6 +66,8 @@ app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(organization_bp, url_prefix='/api/organizations')
 app.register_blueprint(super_admin_bp, url_prefix='/api/super-admin')
 app.register_blueprint(profile_bp, url_prefix='/api/profile')
+# app.register_blueprint(locations_bp, url_prefix='/api/locations')  # TODO: Enable when locations added
+app.register_blueprint(servant_bp, url_prefix='/api/servants')
 # app.register_blueprint(qr_bp, url_prefix='/api/qr')  # TODO: Enable when updated
 
 @app.route('/health')
@@ -89,12 +93,15 @@ def create_super_admin():
                 
                 db.session.add(super_admin)
                 db.session.commit()
-                print("✅ Super admin created successfully")
+                import logging
+                logging.getLogger(__name__).info('Super admin created successfully')
             else:
-                print("✅ Super admin already exists")
-                
+                import logging
+                logging.getLogger(__name__).info('Super admin already exists')
+
     except Exception as e:
-        print(f"❌ Error creating super admin: {e}")
+        import logging
+        logging.getLogger(__name__).error('Error creating super admin: %s', e)
 
 if __name__ == '__main__':
     with app.app_context():

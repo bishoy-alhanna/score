@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { 
   Users, UserPlus, Trophy, BarChart3, Settings, LogOut, Building2, 
   UserCheck, UserX, Clock, Plus, CheckCircle, XCircle, Shield,
-  UsersIcon, Target, Award, Scan, TrendingUp, Tags
+  UsersIcon, Target, Award, Scan, TrendingUp, Tags, UserCog
 } from 'lucide-react'
 import axios from 'axios'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -23,7 +23,6 @@ import SuperAdminDashboard from '@/components/SuperAdminDashboard'
 import AdminLogin from '@/components/AdminLogin'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import TranslationWrapper from '@/components/TranslationWrapper'
-import UserScoresManagement from '@/components/UserScoresManagement'
 import { useTranslation } from 'react-i18next'
 import './i18n'
 import './rtl.css'
@@ -33,7 +32,7 @@ import './App.css'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 // API service
-export const api = axios.create({
+const api = axios.create({
   baseURL: API_BASE_URL,
 })
 
@@ -48,12 +47,6 @@ api.interceptors.request.use((config) => {
 
 // Auth context
 const AuthContext = React.createContext()
-
-export function useAuth() {
-  return React.useContext(AuthContext)
-}
-
-export { AuthContext }
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -174,6 +167,10 @@ function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
+}
+
+function useAuth() {
+  return React.useContext(AuthContext)
 }
 
 // Organization selection/creation component
@@ -545,14 +542,14 @@ function AppContent() {
                 </h1>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <LanguageSwitcher />
-              <Badge variant="secondary">{currentOrganization?.role}</Badge>
-              <span className="text-sm text-gray-700">{currentOrganization?.organization_name}</span>
-              <span className="text-sm text-gray-700">{user?.username}</span>
-              <Button variant="outline" size="sm" onClick={logout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                {t('auth.logout')}
+              <Badge variant="secondary" className="hidden sm:inline-flex shrink-0">{currentOrganization?.role}</Badge>
+              <span className="text-sm text-gray-700 hidden md:block truncate max-w-[140px]">{currentOrganization?.organization_name}</span>
+              <span className="text-sm text-gray-700 hidden lg:block truncate max-w-[100px]">{user?.username}</span>
+              <Button variant="outline" size="sm" onClick={logout} className="shrink-0">
+                <LogOut className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">{t('auth.logout')}</span>
               </Button>
             </div>
           </div>
@@ -567,28 +564,41 @@ function AppContent() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="join-requests" className="w-full">
-              <TabsList className="grid w-full grid-cols-7">
-                <TabsTrigger value="join-requests">{t('navigation.joinRequests')}</TabsTrigger>
-                <TabsTrigger value="users">{t('navigation.users')}</TabsTrigger>
-                <TabsTrigger value="user-scores">{t('navigation.userScores')}</TabsTrigger>
+            <Tabs defaultValue={user?.role === 'SERVANT' ? 'groups' : 'join-requests'} className="w-full">
+              <TabsList className={user?.role === 'SERVANT' ? 'grid w-full grid-cols-2' : 'grid w-full grid-cols-8'}>
+                {user?.role !== 'SERVANT' && (
+                  <>
+                    <TabsTrigger value="join-requests">{t('navigation.joinRequests')}</TabsTrigger>
+                    <TabsTrigger value="users">{t('navigation.users')}</TabsTrigger>
+                    <TabsTrigger value="servants">Servants</TabsTrigger>
+                  </>
+                )}
                 <TabsTrigger value="groups">{t('navigation.groups')}</TabsTrigger>
                 <TabsTrigger value="scoring">{t('navigation.scoring')}</TabsTrigger>
-                <TabsTrigger value="leaderboard">{t('navigation.leaderboards')}</TabsTrigger>
-                <TabsTrigger value="qr-scanner">{t('navigation.qrScanner')}</TabsTrigger>
+                {user?.role !== 'SERVANT' && (
+                  <>
+                    <TabsTrigger value="user-scores">User Scores</TabsTrigger>
+                    <TabsTrigger value="leaderboard">{t('navigation.leaderboards')}</TabsTrigger>
+                    <TabsTrigger value="qr-scanner">{t('navigation.qrScanner')}</TabsTrigger>
+                  </>
+                )}
               </TabsList>
               
-              <TabsContent value="join-requests" className="space-y-4">
-                <JoinRequestsManagement />
-              </TabsContent>
-              
-              <TabsContent value="users" className="space-y-4">
-                <UsersManagement />
-              </TabsContent>
-              
-              <TabsContent value="user-scores" className="space-y-4">
-                <UserScoresManagement />
-              </TabsContent>
+              {user?.role !== 'SERVANT' && (
+                <>
+                  <TabsContent value="join-requests" className="space-y-4">
+                    <JoinRequestsManagement />
+                  </TabsContent>
+                  
+                  <TabsContent value="users" className="space-y-4">
+                    <UsersManagement />
+                  </TabsContent>
+                  
+                  <TabsContent value="servants" className="space-y-4">
+                    <ServantsManagement />
+                  </TabsContent>
+                </>
+              )}
               
               <TabsContent value="groups" className="space-y-4">
                 <GroupsManagement />
@@ -598,13 +608,21 @@ function AppContent() {
                 <ScoringManagement />
               </TabsContent>
               
-              <TabsContent value="leaderboard" className="space-y-4">
-                <LeaderboardManagement />
-              </TabsContent>
-              
-              <TabsContent value="qr-scanner" className="space-y-4">
-                <QRScannerManagement />
-              </TabsContent>
+              {user?.role !== 'SERVANT' && (
+                <>
+                  <TabsContent value="user-scores" className="space-y-4">
+                    <UserScoresManagement />
+                  </TabsContent>
+                  
+                  <TabsContent value="leaderboard" className="space-y-4">
+                    <LeaderboardManagement />
+                  </TabsContent>
+                  
+                  <TabsContent value="qr-scanner" className="space-y-4">
+                    <QRScannerManagement />
+                  </TabsContent>
+                </>
+              )}
             </Tabs>
           </CardContent>
         </Card>
@@ -770,7 +788,6 @@ function UsersManagement() {
   const [editingUser, setEditingUser] = useState(null)
   const [passwordResetUser, setPasswordResetUser] = useState(null)
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null)
-  const [imagePopup, setImagePopup] = useState({ open: false, url: '', userName: '' })
   const { currentOrganization } = useAuth()
 
   const [inviteData, setInviteData] = useState({
@@ -781,6 +798,12 @@ function UsersManagement() {
     last_name: '',
     role: 'USER'
   })
+
+  const [showBulkAddForm, setShowBulkAddForm] = useState(false)
+  const [bulkUsers, setBulkUsers] = useState([
+    { username: '', email: '', password: '', first_name: '', last_name: '', role: 'USER' }
+  ])
+  const [bulkAddResults, setBulkAddResults] = useState(null)
 
   const [editData, setEditData] = useState({
     username: '',
@@ -824,6 +847,62 @@ function UsersManagement() {
       setError('Failed to invite user')
       console.error('Error inviting user:', error)
     }
+  }
+
+  const handleBulkAddUsers = async (e) => {
+    e.preventDefault()
+    setError('')
+    setBulkAddResults(null)
+    
+    try {
+      // Filter out empty rows
+      const validUsers = bulkUsers.filter(user => 
+        user.username.trim() && user.email.trim() && user.password.trim()
+      )
+      
+      if (validUsers.length === 0) {
+        setError('Please add at least one valid user')
+        return
+      }
+
+      const response = await api.post(
+        `/auth/organizations/${currentOrganization.organization_id}/bulk-add-users`,
+        { users: validUsers }
+      )
+      
+      setBulkAddResults(response.data)
+      
+      // If all succeeded, close form and refresh users
+      if (response.data.errors.length === 0) {
+        setTimeout(() => {
+          setShowBulkAddForm(false)
+          setBulkUsers([{ username: '', email: '', password: '', first_name: '', last_name: '', role: 'USER' }])
+          setBulkAddResults(null)
+          fetchUsers()
+        }, 2000)
+      }
+    } catch (error) {
+      setError('Failed to add users: ' + (error.response?.data?.error || error.message))
+      console.error('Error adding bulk users:', error)
+    }
+  }
+
+  const addBulkUserRow = () => {
+    if (bulkUsers.length < 100) {
+      setBulkUsers([...bulkUsers, { username: '', email: '', password: '', first_name: '', last_name: '', role: 'USER' }])
+    }
+  }
+
+  const removeBulkUserRow = (index) => {
+    if (bulkUsers.length > 1) {
+      setBulkUsers(bulkUsers.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateBulkUser = (index, field, value) => {
+    const updated = [...bulkUsers]
+    updated[index][field] = value
+    setBulkUsers(updated)
   }
 
   const handleEditUser = async (e) => {
@@ -943,17 +1022,23 @@ function UsersManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h3 className="text-lg font-medium text-gray-900">Users Management</h3>
           <p className="text-sm text-gray-500">
             Manage users in your organization
           </p>
         </div>
-        <Button onClick={() => setShowInviteForm(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Invite User
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setShowBulkAddForm(true)} variant="outline">
+            <Users className="h-4 w-4 mr-2" />
+            Bulk Add Users
+          </Button>
+          <Button onClick={() => setShowInviteForm(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite User
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -1044,6 +1129,165 @@ function UsersManagement() {
         </Card>
       )}
 
+      {/* Bulk Add Users Form */}
+      {showBulkAddForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bulk Add Users</CardTitle>
+            <CardDescription>Add multiple users to your organization at once</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleBulkAddUsers} className="space-y-4">
+              <div className="space-y-4">
+                {bulkUsers.map((user, index) => (
+                  <div key={index} className="border rounded-lg p-4 space-y-4 bg-gray-50">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-medium text-sm">User {index + 1}</h4>
+                      {bulkUsers.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeBulkUserRow(index)}
+                        >
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor={`username-${index}`}>Username *</Label>
+                        <Input
+                          id={`username-${index}`}
+                          value={user.username}
+                          onChange={(e) => updateBulkUser(index, 'username', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`email-${index}`}>Email *</Label>
+                        <Input
+                          id={`email-${index}`}
+                          type="email"
+                          value={user.email}
+                          onChange={(e) => updateBulkUser(index, 'email', e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor={`first_name-${index}`}>First Name</Label>
+                        <Input
+                          id={`first_name-${index}`}
+                          value={user.first_name}
+                          onChange={(e) => updateBulkUser(index, 'first_name', e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`last_name-${index}`}>Last Name</Label>
+                        <Input
+                          id={`last_name-${index}`}
+                          value={user.last_name}
+                          onChange={(e) => updateBulkUser(index, 'last_name', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor={`password-${index}`}>Password *</Label>
+                        <Input
+                          id={`password-${index}`}
+                          type="password"
+                          value={user.password}
+                          onChange={(e) => updateBulkUser(index, 'password', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`role-${index}`}>Role</Label>
+                        <Select 
+                          value={user.role} 
+                          onValueChange={(value) => updateBulkUser(index, 'role', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="USER">User</SelectItem>
+                            <SelectItem value="ORG_ADMIN">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addBulkUserRow}
+                className="w-full"
+                disabled={bulkUsers.length >= 100}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Another User {bulkUsers.length >= 100 && '(Max 100 reached)'}
+              </Button>
+
+              {bulkAddResults && (
+                <div className="space-y-2">
+                  {bulkAddResults.summary.created > 0 && (
+                    <Alert className="border-green-500 bg-green-50">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertDescription>
+                        Successfully created {bulkAddResults.summary.created} user(s)
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {bulkAddResults.summary.skipped > 0 && (
+                    <Alert className="border-yellow-500 bg-yellow-50">
+                      <Clock className="h-4 w-4 text-yellow-600" />
+                      <AlertDescription>
+                        Skipped {bulkAddResults.summary.skipped} user(s) - already exist
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {bulkAddResults.summary.failed > 0 && (
+                    <Alert variant="destructive">
+                      <XCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Failed to create {bulkAddResults.summary.failed} user(s)
+                        <ul className="mt-2 list-disc list-inside">
+                          {bulkAddResults.errors.map((err, i) => (
+                            <li key={i} className="text-sm">{err.email || err.username}: {err.error}</li>
+                          ))}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+
+              <div className="flex space-x-2">
+                <Button type="submit">Add All Users</Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowBulkAddForm(false)
+                    setBulkUsers([{ username: '', email: '', password: '', first_name: '', last_name: '', role: 'USER' }])
+                    setBulkAddResults(null)
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Users List */}
       <Card>
         <CardHeader>
@@ -1062,56 +1306,25 @@ function UsersManagement() {
           ) : (
             <div className="space-y-4">
               {users.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      {user.profile_picture_url ? (
-                        <button
-                          onClick={() => setImagePopup({
-                            open: true,
-                            url: user.profile_picture_url,
-                            userName: `${user.first_name} ${user.last_name}`
-                          })}
-                          className="relative group cursor-pointer"
-                        >
-                          <img
-                            src={user.profile_picture_url}
-                            alt={`${user.first_name} ${user.last_name}`}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 group-hover:border-blue-500 transition-colors"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextElementSibling.style.display = 'flex';
-                            }}
-                          />
-                          <div className="bg-blue-100 rounded-full p-2 w-10 h-10 hidden items-center justify-center">
-                            <Users className="h-5 w-5 text-blue-600" />
-                          </div>
-                          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 rounded-full transition-all">
-                            <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                            </svg>
-                          </div>
-                        </button>
-                      ) : (
-                        <div className="bg-blue-100 rounded-full p-2">
-                          <Users className="h-5 w-5 text-blue-600" />
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-medium">{user.first_name} {user.last_name}</p>
-                        <p className="text-sm text-gray-600">@{user.username}</p>
-                        <p className="text-sm text-gray-500">{user.email}</p>
-                      </div>
+                <div key={user.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-3">
+                  <div className="flex items-center space-x-3 min-w-0">
+                    <div className="bg-blue-100 rounded-full p-2 shrink-0">
+                      <Users className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{user.first_name} {user.last_name}</p>
+                      <p className="text-sm text-gray-600 truncate">@{user.username}</p>
+                      <p className="text-sm text-gray-500 truncate">{user.email}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-3">
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {/* Role Selector */}
-                    <Select 
-                      value={user.role} 
+                    <Select
+                      value={user.role}
                       onValueChange={(value) => handleChangeRole(user.id, value)}
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-28">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1126,36 +1339,16 @@ function UsersManagement() {
                     </Badge>
 
                     {/* Action Buttons */}
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => startEdit(user)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => startPasswordReset(user)}
-                      >
-                        Reset Password
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={user.is_active ? "destructive" : "default"}
-                        onClick={() => handleToggleUserStatus(user.id, user.is_active)}
-                      >
-                        {user.is_active ? 'Disable' : 'Enable'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => setDeleteConfirmUser(user)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
+                    <Button size="sm" variant="outline" onClick={() => startEdit(user)}>Edit</Button>
+                    <Button size="sm" variant="outline" onClick={() => startPasswordReset(user)}>Reset Pw</Button>
+                    <Button
+                      size="sm"
+                      variant={user.is_active ? "destructive" : "default"}
+                      onClick={() => handleToggleUserStatus(user.id, user.is_active)}
+                    >
+                      {user.is_active ? 'Disable' : 'Enable'}
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => setDeleteConfirmUser(user)}>Remove</Button>
                   </div>
                 </div>
               ))}
@@ -1285,35 +1478,279 @@ function UsersManagement() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
 
-      {/* Profile Picture Popup */}
-      <Dialog open={imagePopup.open} onOpenChange={(open) => setImagePopup({ ...imagePopup, open })}>
-        <DialogContent className="max-w-4xl p-0 bg-transparent border-none shadow-none">
-          <div className="relative bg-white rounded-lg overflow-hidden">
-            {/* Header */}
-            <div className="bg-gray-900 bg-opacity-90 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-white">{imagePopup.userName}</h3>
-              <button
-                onClick={() => setImagePopup({ open: false, url: '', userName: '' })}
-                className="text-white hover:text-gray-300 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+// Servants Management Component
+function ServantsManagement() {
+  const { t } = useTranslation()
+  const [servants, setServants] = useState([])
+  const [users, setUsers] = useState([])
+  const [groups, setGroups] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedServant, setSelectedServant] = useState(null)
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [showAssignDialog, setShowAssignDialog] = useState(false)
+  const { currentOrganization } = useAuth()
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id) {
+      fetchServants()
+      fetchUsers()
+      fetchGroups()
+    }
+  }, [currentOrganization])
+
+  const fetchServants = async () => {
+    try {
+      const response = await api.get(`/servants?organization_id=${currentOrganization.organization_id}`)
+      setServants(response.data.servants || [])
+      setError('')
+    } catch (error) {
+      setError('Failed to fetch servants')
+      console.error('Error fetching servants:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get(`/auth/organizations/${currentOrganization.organization_id}/users`)
+      setUsers(response.data.users || [])
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
+
+  const fetchGroups = async () => {
+    try {
+      const response = await api.get(`/groups?organization_id=${currentOrganization.organization_id}`)
+      setGroups(response.data.groups || [])
+    } catch (error) {
+      console.error('Error fetching groups:', error)
+    }
+  }
+
+  const handlePromoteToServant = async (userId) => {
+    try {
+      await api.post(`/servants/users/${userId}/promote-to-servant`)
+      await fetchServants()
+      await fetchUsers()
+      setError('')
+    } catch (error) {
+      setError('Failed to promote user to servant')
+      console.error('Error promoting user:', error)
+    }
+  }
+
+  const handleDemoteFromServant = async (userId) => {
+    try {
+      await api.post(`/servants/users/${userId}/demote-from-servant`)
+      await fetchServants()
+      await fetchUsers()
+      setError('')
+    } catch (error) {
+      setError('Failed to demote servant')
+      console.error('Error demoting servant:', error)
+    }
+  }
+
+  const handleAssignToGroup = async () => {
+    if (!selectedServant || !selectedGroup) return
+    
+    try {
+      await api.post(`/servants/${selectedServant.id}/groups`, {
+        group_id: selectedGroup
+      })
+      await fetchServants()
+      setShowAssignDialog(false)
+      setSelectedServant(null)
+      setSelectedGroup('')
+      setError('')
+    } catch (error) {
+      setError('Failed to assign servant to group')
+      console.error('Error assigning servant:', error)
+    }
+  }
+
+  const handleRemoveFromGroup = async (servantId, groupId) => {
+    try {
+      await api.delete(`/servants/${servantId}/groups/${groupId}`)
+      await fetchServants()
+      setError('')
+    } catch (error) {
+      setError('Failed to remove servant from group')
+      console.error('Error removing servant from group:', error)
+    }
+  }
+
+  if (loading) {
+    return <LoadingSpinner />
+  }
+
+  const regularUsers = users.filter(user => user.role === 'USER')
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <UserCog className="h-6 w-6" />
+            Servants Management
+          </h2>
+          <p className="text-gray-600 mt-1">
+            Manage servants and their group assignments
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Current Servants */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Servants ({servants.length})</CardTitle>
+          <CardDescription>Users with SERVANT role</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {servants.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No servants yet</p>
+            ) : (
+              servants.map((servant) => (
+                <div key={servant.id} className="border rounded-lg p-4">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold">{servant.first_name} {servant.last_name}</h3>
+                        <Badge variant="secondary">
+                          <Shield className="h-3 w-3 mr-1" />
+                          SERVANT
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600">{servant.username}</p>
+                      <p className="text-sm text-gray-600">{servant.email}</p>
+
+                      {/* Assigned Groups */}
+                      {servant.assigned_groups && servant.assigned_groups.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium text-gray-700">Assigned Groups:</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {servant.assigned_groups.map((group) => (
+                              <Badge key={group.id} variant="outline" className="flex items-center gap-1">
+                                {group.name}
+                                <button
+                                  onClick={() => handleRemoveFromGroup(servant.id, group.id)}
+                                  className="ml-1 hover:text-red-600"
+                                >
+                                  <XCircle className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedServant(servant)
+                          setShowAssignDialog(true)
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Assign Group
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDemoteFromServant(servant.id)}
+                      >
+                        <UserX className="h-4 w-4 mr-1" />
+                        Demote
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Regular Users to Promote */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Promote Users to Servant</CardTitle>
+          <CardDescription>Regular users who can be promoted to SERVANT role</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {regularUsers.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No regular users available</p>
+            ) : (
+              regularUsers.map((user) => (
+                <div key={user.id} className="flex justify-between items-center border rounded-lg p-3">
+                  <div>
+                    <p className="font-medium">{user.first_name} {user.last_name}</p>
+                    <p className="text-sm text-gray-600">{user.username} • {user.email}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handlePromoteToServant(user.id)}
+                  >
+                    <UserCheck className="h-4 w-4 mr-1" />
+                    Promote to Servant
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Assign to Group Dialog */}
+      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Servant to Group</DialogTitle>
+            <DialogDescription>
+              Select a group to assign {selectedServant?.first_name} {selectedServant?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Select Group</Label>
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            
-            {/* Image */}
-            <div className="bg-gray-50 flex items-center justify-center p-8">
-              <img
-                src={imagePopup.url}
-                alt={imagePopup.userName}
-                className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
-                onError={(e) => {
-                  e.target.src = '';
-                  e.target.alt = 'Failed to load image';
-                }}
-              />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAssignDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAssignToGroup} disabled={!selectedGroup}>
+                Assign
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -1330,7 +1767,7 @@ function GroupsManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const { currentOrganization } = useAuth()
+  const { currentOrganization, user } = useAuth()
 
   // Group creation state
   const [showCreateGroup, setShowCreateGroup] = useState(false)
@@ -1343,6 +1780,8 @@ function GroupsManagement() {
   const [editingGroup, setEditingGroup] = useState(null)
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [groupUsers, setGroupUsers] = useState([])
+  
+  const isServant = user?.role === 'SERVANT'
 
   useEffect(() => {
     if (currentOrganization?.organization_id) {
@@ -1353,8 +1792,17 @@ function GroupsManagement() {
 
   const fetchGroups = async () => {
     try {
-      const response = await api.get(`/groups?organization_id=${currentOrganization.organization_id}`)
-      setGroups(response.data.groups || [])
+      if (isServant) {
+        // Servants only see their assigned groups
+        const response = await api.get(`/servants/${user.id}/groups`)
+        // Extract group details from assignments
+        const servantGroups = response.data.assignments?.map(assignment => assignment.group).filter(Boolean) || []
+        setGroups(servantGroups)
+      } else {
+        // Admins see all groups
+        const response = await api.get(`/groups?organization_id=${currentOrganization.organization_id}`)
+        setGroups(response.data.groups || [])
+      }
     } catch (error) {
       setError('Failed to fetch groups')
     }
@@ -1448,11 +1896,14 @@ function GroupsManagement() {
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <UsersIcon className="h-5 w-5" />
           {t('sections.groupsManagement')}
+          {isServant && <Badge variant="secondary">My Assigned Groups</Badge>}
         </h3>
-        <Button onClick={() => setShowCreateGroup(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Group
-        </Button>
+        {!isServant && (
+          <Button onClick={() => setShowCreateGroup(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Group
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -1466,47 +1917,55 @@ function GroupsManagement() {
           <AlertDescription className="text-green-800">{success}</AlertDescription>
         </Alert>
       )}
+      
+      {isServant && groups.length === 0 && (
+        <Alert>
+          <AlertDescription>
+            You are not assigned to any groups yet. Please contact your administrator.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Groups Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {groups.map((group) => (
           <Card key={group.id}>
-            <CardHeader>
-              <CardTitle className="flex justify-between items-center">
-                <span>{group.name}</span>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedGroup(group)
-                      fetchGroupUsers(group.id)
-                    }}
-                  >
-                    Manage
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditingGroup(group)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteGroup(group.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base leading-snug">{group.name}</CardTitle>
               <CardDescription>{group.description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600">
-                {group.member_count || 0} members
-              </p>
+              <p className="text-sm text-gray-600 mb-3">{group.member_count || 0} members</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedGroup(group)
+                    fetchGroupUsers(group.id)
+                  }}
+                >
+                  Manage
+                </Button>
+                {!isServant && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingGroup(group)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteGroup(group.id)}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -1667,8 +2126,7 @@ function ScoringManagement() {
   const [newCategory, setNewCategory] = useState({
     name: '',
     description: '',
-    max_score: 100,
-    is_predefined: false
+    max_score: 100
   })
 
   // Score assignment state
@@ -1725,7 +2183,7 @@ function ScoringManagement() {
         organization_id: currentOrganization.organization_id
       })
       setScoreCategories([...scoreCategories, response.data.category])
-      setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
+      setNewCategory({ name: '', description: '', max_score: 100 })
       setShowCreateCategory(false)
       setSuccess('Score category created successfully!')
     } catch (error) {
@@ -1733,34 +2191,31 @@ function ScoringManagement() {
     }
   }
 
-  const handleEditCategory = (category) => {
-    setEditingCategory(category)
-    setNewCategory({
-      name: category.name,
-      description: category.description,
-      max_score: category.max_score,
-      is_predefined: category.is_predefined || false
-    })
-    setShowCreateCategory(true)
-  }
-
   const handleUpdateCategory = async (e) => {
     e.preventDefault()
     try {
-      const response = await api.put(`/scores/categories/${editingCategory.id}`, newCategory)
+      const response = await api.put(`/scores/categories/${editingCategory.id}`, {
+        name: editingCategory.name,
+        description: editingCategory.description,
+        max_score: editingCategory.max_score,
+        is_predefined: editingCategory.is_predefined || false
+      })
       setScoreCategories(scoreCategories.map(cat => 
         cat.id === editingCategory.id ? response.data.category : cat
       ))
-      setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
       setEditingCategory(null)
-      setShowCreateCategory(false)
-      setSuccess('Score category updated successfully!')
+      setSuccess('Category updated successfully!')
     } catch (error) {
-      setError('Failed to update score category')
+      setError('Failed to update category')
     }
   }
 
-  const handleDeleteCategory = async (categoryId, categoryName) => {
+  const handleDeleteCategory = async (categoryId, categoryName, isPredefined) => {
+    if (isPredefined) {
+      setError('Cannot delete predefined categories')
+      return
+    }
+    
     if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
       return
     }
@@ -1842,9 +2297,9 @@ function ScoringManagement() {
           <CardContent>
             <div className="space-y-2">
               {scoreCategories.map((category) => (
-                <div key={category.id} className="flex justify-between items-center p-3 border rounded">
-                  <div>
-                    <h4 className="font-medium flex items-center gap-2">
+                <div key={category.id} className="flex flex-col sm:flex-row sm:justify-between sm:items-center p-3 border rounded gap-2">
+                  <div className="min-w-0">
+                    <h4 className="font-medium flex flex-wrap items-center gap-2">
                       {category.name}
                       {category.is_predefined && (
                         <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
@@ -1855,21 +2310,23 @@ function ScoringManagement() {
                     <p className="text-sm text-gray-600">{category.description}</p>
                     <p className="text-sm text-gray-500">Max Score: {category.max_score}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
                       size="sm"
-                      onClick={() => handleEditCategory(category)}
+                      onClick={() => setEditingCategory(category)}
                     >
                       Edit
                     </Button>
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={() => handleDeleteCategory(category.id, category.name)}
-                    >
-                      Delete
-                    </Button>
+                    {!category.is_predefined && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteCategory(category.id, category.name, category.is_predefined)}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1973,21 +2430,17 @@ function ScoringManagement() {
         </Card>
       </div>
 
-      {/* Create/Edit Category Dialog */}
+      {/* Create Category Dialog */}
       {showCreateCategory && (
-        <Dialog open={showCreateCategory} onOpenChange={() => {
-          setShowCreateCategory(false)
-          setEditingCategory(null)
-          setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
-        }}>
+        <Dialog open={showCreateCategory} onOpenChange={setShowCreateCategory}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingCategory ? 'Edit Score Category' : 'Create Score Category'}</DialogTitle>
+              <DialogTitle>Create Score Category</DialogTitle>
               <DialogDescription>
-                {editingCategory ? 'Update the scoring category' : 'Create a new scoring category for your organization'}
+                Create a new scoring category for your organization
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={editingCategory ? handleUpdateCategory : handleCreateCategory} className="space-y-4">
+            <form onSubmit={handleCreateCategory} className="space-y-4">
               <div>
                 <Label htmlFor="category_name">Category Name</Label>
                 <Input
@@ -2015,29 +2468,434 @@ function ScoringManagement() {
                   required
                 />
               </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="is_predefined"
-                  checked={newCategory.is_predefined}
-                  onChange={(e) => setNewCategory({ ...newCategory, is_predefined: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300"
+              <div className="flex space-x-2">
+                <Button type="submit">Create Category</Button>
+                <Button type="button" variant="outline" onClick={() => setShowCreateCategory(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Edit Category Dialog */}
+      {editingCategory && (
+        <Dialog open={!!editingCategory} onOpenChange={() => setEditingCategory(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Score Category</DialogTitle>
+              <DialogDescription>
+                Update the category information
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateCategory} className="space-y-4">
+              <div>
+                <Label htmlFor="edit_category_name">Category Name</Label>
+                <Input
+                  id="edit_category_name"
+                  value={editingCategory.name}
+                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                  required
                 />
-                <Label htmlFor="is_predefined" className="cursor-pointer">
+              </div>
+              <div>
+                <Label htmlFor="edit_category_description">Description</Label>
+                <Input
+                  id="edit_category_description"
+                  value={editingCategory.description}
+                  onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_max_score">Maximum Score</Label>
+                <Input
+                  id="edit_max_score"
+                  type="number"
+                  value={editingCategory.max_score}
+                  onChange={(e) => setEditingCategory({ ...editingCategory, max_score: parseInt(e.target.value) || 100 })}
+                  required
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit_is_predefined"
+                  checked={editingCategory.is_predefined || false}
+                  onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, is_predefined: checked })}
+                />
+                <Label htmlFor="edit_is_predefined" className="cursor-pointer">
                   Mark as Predefined Category
-                  <span className="block text-xs text-gray-500">
-                    Predefined categories are highlighted and can be used for standard activities
-                  </span>
                 </Label>
               </div>
               <div className="flex space-x-2">
-                <Button type="submit">{editingCategory ? 'Update Category' : 'Create Category'}</Button>
-                <Button type="button" variant="outline" onClick={() => {
-                  setShowCreateCategory(false)
-                  setEditingCategory(null)
-                  setNewCategory({ name: '', description: '', max_score: 100, is_predefined: false })
-                }}>
+                <Button type="submit">Update Category</Button>
+                <Button type="button" variant="outline" onClick={() => setEditingCategory(null)}>
                   Cancel
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  )
+}
+
+// User Scores Management Component
+function UserScoresManagement() {
+  const { t } = useTranslation()
+  const [scores, setScores] = useState([])
+  const [users, setUsers] = useState([])
+  const [scoreCategories, setScoreCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const { currentOrganization } = useAuth()
+  const [editingScore, setEditingScore] = useState(null)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalScores, setTotalScores] = useState(0)
+
+  // Filters
+  const [filterUserId, setFilterUserId] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+
+  useEffect(() => {
+    if (currentOrganization?.organization_id) {
+      fetchScores()
+      fetchUsers()
+      fetchScoreCategories()
+    }
+  }, [currentOrganization, currentPage, filterUserId, filterCategory])
+
+  const fetchScores = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        per_page: '20'
+      })
+      
+      if (filterUserId) params.append('user_id', filterUserId)
+      if (filterCategory) params.append('category', filterCategory)
+      
+      const response = await api.get(`/scores?${params}`)
+      setScores(response.data.scores || [])
+      setTotalPages(response.data.pagination?.pages || 1)
+      setTotalScores(response.data.pagination?.total || 0)
+    } catch (error) {
+      setError('Failed to fetch scores')
+      console.error('Error fetching scores:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get(`/organizations/users`)
+      setUsers(response.data.users || [])
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
+
+  const fetchScoreCategories = async () => {
+    try {
+      const response = await api.get('/scores/categories')
+      setScoreCategories(response.data.categories || [])
+    } catch (error) {
+      console.error('Error fetching score categories:', error)
+    }
+  }
+
+  const handleEditScore = (score) => {
+    setEditingScore({
+      ...score,
+      score_value: score.score_value,
+      category_id: score.category_id || ''
+    })
+    setShowEditDialog(true)
+  }
+
+  const handleUpdateScore = async (e) => {
+    e.preventDefault()
+    try {
+      const payload = {
+        score_value: editingScore.score_value,
+        description: editingScore.description
+      }
+      if (editingScore.category_id) {
+        payload.category_id = editingScore.category_id
+      }
+      await api.put(`/scores/${editingScore.id}`, payload)
+      setSuccess('Score updated successfully!')
+      setShowEditDialog(false)
+      setEditingScore(null)
+      fetchScores()
+    } catch (error) {
+      setError('Failed to update score')
+    }
+  }
+
+  const handleDeleteScore = async (scoreId) => {
+    if (!confirm('Are you sure you want to delete this score?')) {
+      return
+    }
+    
+    try {
+      await api.delete(`/scores/${scoreId}`)
+      setSuccess('Score deleted successfully!')
+      fetchScores()
+    } catch (error) {
+      setError('Failed to delete score')
+    }
+  }
+
+  const getUserName = (userId) => {
+    const user = users.find(u => u.id === userId)
+    if (!user) return `User ${userId?.slice(0, 8)}`
+    return user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || `User ${userId?.slice(0, 8)}`
+  }
+
+  if (!currentOrganization) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="text-gray-500">Please select an organization</div>
+      </div>
+    )
+  }
+
+  if (loading && scores.length === 0) return <LoadingSpinner />
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Target className="h-5 w-5" />
+          User Scores Management
+        </h3>
+        <div className="text-sm text-gray-600">
+          Total Scores: {totalScores}
+        </div>
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className="border-green-200 bg-green-50">
+          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="filterUser">Filter by User</Label>
+              <Select value={filterUserId || "all"} onValueChange={(value) => {
+                setFilterUserId(value === "all" ? "" : value)
+                setCurrentPage(1)
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Users" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {getUserName(user.id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="filterCategory">Filter by Category</Label>
+              <Input
+                id="filterCategory"
+                value={filterCategory}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value)
+                  setCurrentPage(1)
+                }}
+                placeholder="Enter category"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Scores Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Scores</CardTitle>
+          <CardDescription>Review, edit, or delete scores assigned to users</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-3 font-medium">User</th>
+                  <th className="text-left p-3 font-medium">Category</th>
+                  <th className="text-left p-3 font-medium">Score</th>
+                  <th className="text-left p-3 font-medium">Description</th>
+                  <th className="text-left p-3 font-medium">Date</th>
+                  <th className="text-left p-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scores.map((score) => (
+                  <tr key={score.id} className="border-b hover:bg-gray-50">
+                    <td className="p-3">{getUserName(score.user_id)}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                        {score.category || 'general'}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className="font-bold text-lg">{score.score_value}</span>
+                    </td>
+                    <td className="p-3 max-w-xs truncate">
+                      {score.description || '-'}
+                    </td>
+                    <td className="p-3 text-sm text-gray-600">
+                      {new Date(score.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditScore(score)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteScore(score.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {scores.length === 0 && !loading && (
+            <div className="text-center py-8 text-gray-500">
+              No scores found
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center gap-4 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Score Dialog */}
+      {editingScore && (
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Score</DialogTitle>
+              <DialogDescription>
+                Update the score value, category, or description
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateScore} className="space-y-4">
+              <div>
+                <Label htmlFor="edit_score_value">Score Value</Label>
+                <Input
+                  id="edit_score_value"
+                  type="number"
+                  value={editingScore.score_value}
+                  onChange={(e) => setEditingScore({
+                    ...editingScore,
+                    score_value: parseInt(e.target.value) || 0
+                  })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit_category">Category</Label>
+                <Select
+                  value={editingScore.category_id}
+                  onValueChange={(value) => setEditingScore({ ...editingScore, category_id: value })}
+                >
+                  <SelectTrigger id="edit_category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scoreCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name} (Max: {cat.max_score})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit_description">Description</Label>
+                <Input
+                  id="edit_description"
+                  value={editingScore.description || ''}
+                  onChange={(e) => setEditingScore({
+                    ...editingScore,
+                    description: e.target.value
+                  })}
+                  placeholder="Optional description"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditDialog(false)
+                    setEditingScore(null)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Save Changes
                 </Button>
               </div>
             </form>
@@ -2058,9 +2916,13 @@ function LeaderboardManagement() {
   const [activeTab, setActiveTab] = useState('users')
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('all')
+
+  // Date filter state
+  const [filterByDate, setFilterByDate] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [dateFilterEnabled, setDateFilterEnabled] = useState(false)
+  const [filterSaveSuccess, setFilterSaveSuccess] = useState('')
+  const [filterSaveError, setFilterSaveError] = useState('')
   
   // User Profiles Management State
   const [userProfiles, setUserProfiles] = useState([])
@@ -2133,61 +2995,23 @@ function LeaderboardManagement() {
   
   const { currentOrganization } = useAuth()
 
-  // Load organization filter settings on mount
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchCategories()
       loadOrganizationFilterSettings()
-    }
-  }, [currentOrganization])
-
-  const loadOrganizationFilterSettings = async () => {
-    try {
-      const response = await api.get(`/organizations`)
-      const org = response.data
-      
-      if (org.filter_enabled) {
-        setDateFilterEnabled(true)
-        setStartDate(org.filter_start_date || '')
-        setEndDate(org.filter_end_date || '')
-      }
-    } catch (error) {
-      console.error('Failed to load organization filter settings:', error)
-    }
-  }
-
-  const saveOrganizationFilterSettings = async () => {
-    try {
-      const payload = {
-        filter_enabled: dateFilterEnabled,
-        filter_start_date: dateFilterEnabled ? startDate : null,
-        filter_end_date: dateFilterEnabled ? endDate : null
-      }
-      
-      await api.put('/organizations/filter-settings', payload)
-      
-      alert('Date filter settings saved successfully!')
-    } catch (error) {
-      console.error('Failed to save organization filter settings:', error)
-      alert('Failed to save date filter settings. Please try again.')
-    }
-  }
-
-  useEffect(() => {
-    if (currentOrganization?.organization_id && categories.length > 0) {
       fetchLeaderboards()
     }
-  }, [currentOrganization, categories])
+  }, [currentOrganization])
 
   useEffect(() => {
     if (currentOrganization?.organization_id && selectedCategory) {
       fetchLeaderboards()
     }
-  }, [selectedCategory, startDate, endDate, dateFilterEnabled])
+  }, [selectedCategory])
 
   // Fetch user profiles when tab is active or dependencies change
   useEffect(() => {
-    if (currentOrganization?.organization_id && activeTab === 'user-profiles') {
+    if (currentOrganization?.organization_id && activeTab === 'users') {
       fetchUserProfiles()
     }
   }, [currentOrganization, activeTab, currentPage, searchTerm])
@@ -2208,28 +3032,66 @@ function LeaderboardManagement() {
     }
   }
 
+  const loadOrganizationFilterSettings = async () => {
+    try {
+      const response = await api.get('/organizations/')
+      const org = response.data.organization
+      if (org) {
+        setFilterByDate(org.filter_enabled || false)
+        setStartDate(org.filter_start_date || '')
+        setEndDate(org.filter_end_date || '')
+      }
+    } catch (error) {
+      console.error('Failed to load organization filter settings:', error)
+    }
+  }
+
+  const saveOrganizationFilterSettings = async () => {
+    setFilterSaveError('')
+    setFilterSaveSuccess('')
+
+    if (filterByDate) {
+      if (!startDate || !endDate) {
+        setFilterSaveError('Both start date and end date are required.')
+        return
+      }
+      if (new Date(startDate) >= new Date(endDate)) {
+        setFilterSaveError('Start date must be before end date.')
+        return
+      }
+    }
+
+    try {
+      await api.put('/organizations/filter-settings', {
+        filter_enabled: filterByDate,
+        filter_start_date: filterByDate ? startDate : null,
+        filter_end_date: filterByDate ? endDate : null,
+      })
+      setFilterSaveSuccess('Date filter settings saved successfully.')
+      setTimeout(() => setFilterSaveSuccess(''), 3000)
+      fetchLeaderboards()
+    } catch (error) {
+      const msg = error.response?.data?.error || 'Failed to save filter settings.'
+      setFilterSaveError(msg)
+      setTimeout(() => setFilterSaveError(''), 4000)
+    }
+  }
+
   const fetchLeaderboards = async () => {
     try {
       setLoading(true)
-      
-      // Build query parameters
-      let queryParams = `organization_id=${currentOrganization.organization_id}&category=${selectedCategory}`
-      
-      // Add date range if enabled and dates are provided
-      if (dateFilterEnabled) {
-        if (startDate) {
-          queryParams += `&start_date=${startDate}`
-        }
-        if (endDate) {
-          queryParams += `&end_date=${endDate}`
-        }
-      }
-      
+      const params = new URLSearchParams({
+        organization_id: currentOrganization.organization_id,
+        category: selectedCategory,
+      })
+      if (filterByDate && startDate) params.append('start_date', startDate)
+      if (filterByDate && endDate) params.append('end_date', endDate)
+
       const [usersResponse, groupsResponse] = await Promise.all([
-        api.get(`/leaderboards/users?${queryParams}`),
-        api.get(`/leaderboards/groups?${queryParams}`)
+        api.get(`/leaderboards/users?${params}`),
+        api.get(`/leaderboards/groups?${params}`)
       ])
-      
+
       setUserLeaderboard(usersResponse.data.leaderboard || [])
       setGroupLeaderboard(groupsResponse.data.leaderboard || [])
     } catch (error) {
@@ -2255,9 +3117,10 @@ function LeaderboardManagement() {
       
       const response = await api.get(`/profile/organization-users?${params}&organization_id=${currentOrganization.organization_id}`)
       
+      console.log('User profiles response:', response.data)
       setUserProfiles(response.data.users || [])
-      setTotalUsers(response.data.total || 0)
-      setTotalPages(response.data.pages || 1)
+      setTotalUsers(response.data.pagination?.total || response.data.total || 0)
+      setTotalPages(response.data.pagination?.pages || response.data.pages || 1)
     } catch (error) {
       setUserProfilesError('Failed to fetch user profiles')
       console.error('Error fetching user profiles:', error)
@@ -2375,70 +3238,26 @@ function LeaderboardManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
           {t('sections.leaderboards')}
         </h3>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <label htmlFor="category-select" className="text-sm font-medium">{t('leaderboards.category')}:</label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder={t('common.selectCategory')} />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category === 'all' ? t('leaderboards.allCategories') : category.charAt(0).toUpperCase() + category.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Checkbox 
-              id="date-filter" 
-              checked={dateFilterEnabled} 
-              onCheckedChange={setDateFilterEnabled}
-            />
-            <label htmlFor="date-filter" className="text-sm font-medium cursor-pointer">
-              Filter by Date
-            </label>
-          </div>
-          
-          {dateFilterEnabled && (
-            <>
-              <div className="flex items-center gap-2">
-                <label htmlFor="start-date" className="text-sm font-medium">From:</label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-[150px]"
-                />
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <label htmlFor="end-date" className="text-sm font-medium">To:</label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-[150px]"
-                />
-              </div>
-              
-              <Button onClick={saveOrganizationFilterSettings} variant="default">
-                Save as Default
-              </Button>
-            </>
-          )}
-          
-          <Button onClick={fetchLeaderboards} variant="outline">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="category-select" className="text-sm font-medium">{t('leaderboards.category')}:</label>
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder={t('common.selectCategory')} />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category === 'all' ? t('leaderboards.allCategories') : category.charAt(0).toUpperCase() + category.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={fetchLeaderboards} variant="outline" size="sm">
             {t('common.refresh')}
           </Button>
         </div>
@@ -2449,6 +3268,51 @@ function LeaderboardManagement() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
+      {/* Date Filter Card */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="filterByDate"
+                checked={filterByDate}
+                onChange={e => setFilterByDate(e.target.checked)}
+                className="h-4 w-4 cursor-pointer"
+              />
+              <label htmlFor="filterByDate" className="text-sm font-medium cursor-pointer">Filter by Date</label>
+            </div>
+            {filterByDate && (
+              <>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-600">From:</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-600">To:</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="border rounded px-2 py-1 text-sm w-full sm:w-auto"
+                  />
+                </div>
+              </>
+            )}
+            <Button size="sm" onClick={saveOrganizationFilterSettings} variant="secondary">
+              {filterByDate ? 'Save as Default' : 'Save (No Filter)'}
+            </Button>
+          </div>
+          {filterSaveSuccess && <p className="text-green-600 text-sm mt-2">{filterSaveSuccess}</p>}
+          {filterSaveError && <p className="text-red-600 text-sm mt-2">{filterSaveError}</p>}
+        </CardContent>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -2472,12 +3336,7 @@ function LeaderboardManagement() {
                         {user.rank || index + 1}
                       </div>
                       <div>
-                        <h4 className="font-medium">
-                          {user.display_name || 
-                           (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : '') ||
-                           user.username || 
-                           `User ${user.user_id?.slice(0, 8)}`}
-                        </h4>
+                        <h4 className="font-medium">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username || `User ${user.user_id?.slice(0, 8)}`}</h4>
                         <p className="text-sm text-gray-600">@{user.username || 'unknown'}</p>
                       </div>
                     </div>
@@ -2531,9 +3390,11 @@ function LeaderboardManagement() {
         <TabsContent value="user-profiles">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Organization User Profiles</span>
-                <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div>
+                  <CardTitle>Organization User Profiles</CardTitle>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
                   <Dialog open={showExportSettings} onOpenChange={setShowExportSettings}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm">
@@ -2923,32 +3784,30 @@ function LeaderboardManagement() {
                     </DialogContent>
                   </Dialog>
                   
-                  <Button 
+                  <Button
                     onClick={exportToExcel}
                     variant="outline"
                     size="sm"
                     disabled={userProfiles.length === 0}
                   >
-                    Export to CSV ({userProfiles.length} users, {Object.values(exportFields).filter(Boolean).length} fields)
+                    Export CSV ({Object.values(exportFields).filter(Boolean).length} fields)
                   </Button>
                 </div>
-              </CardTitle>
-              <CardDescription>
+              </div>
+              <CardDescription className="mt-1">
                 View and manage all user profiles in your organization ({totalUsers} total users)
               </CardDescription>
-              <div className="flex items-center gap-4 mt-4">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search by name, email, or username..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value)
-                      setCurrentPage(1) // Reset to first page when searching
-                    }}
-                    className="max-w-md"
-                  />
-                </div>
-                <Button onClick={fetchUserProfiles} variant="outline" size="sm">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-4">
+                <Input
+                  placeholder="Search by name, email, or username..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="flex-1"
+                />
+                <Button onClick={fetchUserProfiles} variant="outline" size="sm" className="shrink-0">
                   Refresh
                 </Button>
               </div>
@@ -2992,7 +3851,8 @@ function LeaderboardManagement() {
                                   src={(() => {
                                     if (!user.profile_picture_url || user.profile_picture_url.trim() === '') return '/default-profile.png';
                                     if (user.profile_picture_url.startsWith('http')) return user.profile_picture_url;
-                                    return `https://escore.al-hanna.com${user.profile_picture_url}`;
+                                    // Use relative URL so it works on both admin and main domains
+                                    return user.profile_picture_url;
                                   })()}
                                   alt="Profile"
                                   className="w-8 h-8 rounded-full object-cover border border-gray-300 bg-gray-100"
@@ -3038,9 +3898,9 @@ function LeaderboardManagement() {
                   )}
                   
                   {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-6">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mt-6">
                       <div className="text-sm text-gray-600">
-                        Showing page {currentPage} of {totalPages} ({totalUsers} total users)
+                        Page {currentPage} of {totalPages} ({totalUsers} total users)
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -3076,67 +3936,138 @@ function LeaderboardManagement() {
 function QRScannerManagement() {
   const { t } = useTranslation()
   const [scoreCategories, setScoreCategories] = useState([])
+  const [orgUsers, setOrgUsers] = useState([])
   const [isScanning, setIsScanning] = useState(false)
+  const [cameraError, setCameraError] = useState('')
   const [scannedUser, setScannedUser] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const { currentOrganization } = useAuth()
+  const videoRef = useRef(null)
+  const canvasRef = useRef(null)
+  const scanIntervalRef = useRef(null)
 
-  // Quick score assignment state
-  const [quickScore, setQuickScore] = useState({
-    category_id: '',
-    score: 0,
-    reason: ''
-  })
+  const [quickScore, setQuickScore] = useState({ category_id: '', score_value: 1, description: 'Attendance' })
 
   useEffect(() => {
     if (currentOrganization?.organization_id) {
       fetchScoreCategories()
+      fetchOrgUsers()
     }
+    return () => stopCamera()
   }, [currentOrganization])
 
   const fetchScoreCategories = async () => {
     try {
-      const response = await api.get(`/scores/categories?organization_id=${currentOrganization.organization_id}`)
+      const response = await api.get('/scores/categories')
       setScoreCategories(response.data.categories || [])
-    } catch (error) {
+    } catch {
       setError('Failed to fetch score categories')
     }
   }
 
-  const handleQRScan = async (qrData) => {
+  const fetchOrgUsers = async () => {
     try {
-      // Parse QR code data to get user information
-      const response = await api.post('/auth/verify-qr', { qr_token: qrData })
-      setScannedUser(response.data.user)
-      setIsScanning(false)
-      setSuccess(`User scanned: ${response.data.user.first_name} ${response.data.user.last_name}`)
-    } catch (error) {
-      setError('Invalid QR code or user not found')
-      setIsScanning(false)
+      const response = await api.get('/organizations/users')
+      setOrgUsers(response.data.users || [])
+    } catch {
+      // non-fatal
+    }
+  }
+
+  const startCamera = async () => {
+    setCameraError('')
+    setError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      })
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
+      }
+      setIsScanning(true)
+      scanIntervalRef.current = setInterval(scanFrame, 250)
+    } catch (err) {
+      setCameraError('Camera access denied. Grant camera permission or use manual entry below.')
+    }
+  }
+
+  const stopCamera = () => {
+    if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null }
+    if (videoRef.current?.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(t => t.stop())
+      videoRef.current.srcObject = null
+    }
+    setIsScanning(false)
+  }
+
+  const scanFrame = () => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas || video.readyState < video.HAVE_ENOUGH_DATA) return
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(video, 0, 0)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    import('jsqr').then(({ default: jsQR }) => {
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' })
+      if (code?.data) processQRData(code.data)
+    })
+  }
+
+  const processQRData = (raw) => {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed.type !== 'score' || !parsed.user_id) {
+        setError('Invalid QR code — not an attendance code')
+        return
+      }
+      const user = orgUsers.find(u => u.id === parsed.user_id)
+      if (!user) {
+        setError('User not found in this organization')
+        return
+      }
+      stopCamera()
+      setScannedUser(user)
+      setError('')
+      setSuccess(`Identified: ${user.first_name} ${user.last_name}`)
+    } catch {
+      setError('Could not read QR code data')
+    }
+  }
+
+  const handleManualEntry = (e) => {
+    if (e.key === 'Enter' && e.target.value.trim()) {
+      processQRData(e.target.value.trim())
+      e.target.value = ''
     }
   }
 
   const handleQuickScoreAssignment = async (e) => {
     e.preventDefault()
-    if (!scannedUser) return
-
+    if (!scannedUser || !quickScore.category_id) return
     try {
       await api.post('/scores', {
-        target_type: 'user',
-        target_id: scannedUser.id,
+        user_id: scannedUser.id,
         category_id: quickScore.category_id,
-        score: quickScore.score,
-        reason: quickScore.reason,
+        score_value: quickScore.score_value,
+        description: quickScore.description,
         organization_id: currentOrganization.organization_id
       })
-      
-      setQuickScore({ category_id: '', score: 0, reason: '' })
+      setSuccess(`Attendance recorded for ${scannedUser.first_name} ${scannedUser.last_name}!`)
+      setQuickScore({ category_id: quickScore.category_id, score_value: 1, description: 'Attendance' })
       setScannedUser(null)
-      setSuccess('Score assigned successfully!')
-    } catch (error) {
-      setError('Failed to assign score')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to assign score')
     }
+  }
+
+  const resetScanner = () => {
+    setScannedUser(null)
+    setError('')
+    setSuccess('')
   }
 
   return (
@@ -3153,7 +4084,6 @@ function QRScannerManagement() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
       {success && (
         <Alert className="border-green-200 bg-green-50">
           <AlertDescription className="text-green-800">{success}</AlertDescription>
@@ -3161,141 +4091,117 @@ function QRScannerManagement() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* QR Scanner */}
+        {/* Camera Scanner */}
         <Card>
           <CardHeader>
             <CardTitle>QR Code Scanner</CardTitle>
-            <CardDescription>Scan user QR codes to quickly identify users</CardDescription>
+            <CardDescription>Scan a user's attendance QR code from their profile</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Video feed */}
+            <div className={`relative rounded-lg overflow-hidden bg-black ${isScanning ? 'block' : 'hidden'}`} style={{ aspectRatio: '4/3' }}>
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+              {/* Scan overlay */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-48 h-48 border-2 border-white rounded-lg opacity-70">
+                  <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl" />
+                  <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr" />
+                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl" />
+                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br" />
+                </div>
+              </div>
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+
             {!isScanning && !scannedUser && (
-              <Button 
-                onClick={() => setIsScanning(true)}
-                className="w-full"
-              >
-                <Scan className="h-4 w-4 mr-2" />
-                Start Scanning
-              </Button>
+              <div className="space-y-3">
+                <Button onClick={startCamera} className="w-full gap-2">
+                  <Scan className="h-4 w-4" />
+                  Start Camera
+                </Button>
+                {cameraError && <p className="text-sm text-amber-600">{cameraError}</p>}
+              </div>
             )}
 
             {isScanning && (
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <Scan className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-600">
-                    Point your camera at a user's QR code
-                  </p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Or manually enter QR code data below
-                  </p>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="manual_qr">Manual QR Code Entry</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="manual_qr"
-                      placeholder="Enter QR code data"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          handleQRScan(e.target.value)
-                          e.target.value = ''
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsScanning(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <Button variant="outline" onClick={stopCamera} className="w-full">
+                Stop Camera
+              </Button>
             )}
 
             {scannedUser && (
-              <div className="border rounded-lg p-4 bg-green-50">
-                <h4 className="font-medium text-green-800">User Identified</h4>
-                <p className="text-green-700">
-                  {scannedUser.first_name} {scannedUser.last_name}
-                </p>
+              <div className="border rounded-lg p-4 bg-green-50 space-y-2">
+                <p className="font-semibold text-green-800">{scannedUser.first_name} {scannedUser.last_name}</p>
                 <p className="text-sm text-green-600">@{scannedUser.username}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => setScannedUser(null)}
-                >
-                  Clear
-                </Button>
+                <Button variant="outline" size="sm" onClick={resetScanner}>Scan Another</Button>
               </div>
             )}
+
+            {/* Manual fallback */}
+            <div className="space-y-1 pt-2 border-t">
+              <Label className="text-xs text-gray-500">Manual entry (paste QR data + Enter)</Label>
+              <Input placeholder="Paste QR code data and press Enter" onKeyDown={handleManualEntry} />
+            </div>
           </CardContent>
         </Card>
 
         {/* Quick Score Assignment */}
         <Card>
           <CardHeader>
-            <CardTitle>Quick Score Assignment</CardTitle>
+            <CardTitle>Record Attendance</CardTitle>
             <CardDescription>
-              {scannedUser 
-                ? `Assign score to ${scannedUser.first_name} ${scannedUser.last_name}`
-                : 'Scan a user first to assign scores'
-              }
+              {scannedUser
+                ? `Assigning score to ${scannedUser.first_name} ${scannedUser.last_name}`
+                : 'Scan a QR code first'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {scannedUser ? (
               <form onSubmit={handleQuickScoreAssignment} className="space-y-4">
                 <div>
-                  <Label htmlFor="quick_category">{t('scoring.scoreCategory')}</Label>
+                  <Label>Category</Label>
                   <Select
                     value={quickScore.category_id}
-                    onValueChange={(value) => setQuickScore({ ...quickScore, category_id: value })}
+                    onValueChange={(v) => setQuickScore({ ...quickScore, category_id: v })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={t('common.selectCategory')} />
+                      <SelectValue placeholder="Select attendance category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {scoreCategories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name} (Max: {category.max_score})
+                      {scoreCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name} (Max: {cat.max_score})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div>
-                  <Label htmlFor="quick_score">Score</Label>
+                  <Label>Score Value</Label>
                   <Input
-                    id="quick_score"
                     type="number"
-                    value={quickScore.score}
-                    onChange={(e) => setQuickScore({ ...quickScore, score: parseInt(e.target.value) || 0 })}
+                    min="1"
+                    value={quickScore.score_value}
+                    onChange={(e) => setQuickScore({ ...quickScore, score_value: parseInt(e.target.value) || 1 })}
                     required
                   />
                 </div>
-
                 <div>
-                  <Label htmlFor="quick_reason">Reason</Label>
+                  <Label>Note (optional)</Label>
                   <Input
-                    id="quick_reason"
-                    value={quickScore.reason}
-                    onChange={(e) => setQuickScore({ ...quickScore, reason: e.target.value })}
-                    placeholder="Reason for this score"
+                    value={quickScore.description}
+                    onChange={(e) => setQuickScore({ ...quickScore, description: e.target.value })}
+                    placeholder="e.g. Sunday service attendance"
                   />
                 </div>
-
-                <Button type="submit" className="w-full">
-                  Assign Score
+                <Button type="submit" className="w-full" disabled={!quickScore.category_id}>
+                  Record Attendance Score
                 </Button>
               </form>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Scan className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Scan a user's QR code first</p>
+              <div className="text-center py-10 text-gray-400">
+                <Scan className="h-14 w-14 mx-auto mb-3 text-gray-300" />
+                <p className="text-sm">Scan a user&apos;s QR code to begin</p>
               </div>
             )}
           </CardContent>

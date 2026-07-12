@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask
 from flask_cors import CORS
+import redis
 from src.models.database import db
 from src.routes.scores import scores_bp
 
@@ -17,6 +18,17 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-
 database_url = os.environ.get('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/saas_platform')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Redis configuration — used to invalidate leaderboard cache after score changes
+redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
+try:
+    redis_client = redis.from_url(redis_url)
+    redis_client.ping()
+    app.config['REDIS_CLIENT'] = redis_client
+except Exception:
+    import logging
+    logging.getLogger(__name__).warning('Redis connection failed, leaderboard cache will not be invalidated on score changes')
+    app.config['REDIS_CLIENT'] = None
 
 # Initialize database
 db.init_app(app)

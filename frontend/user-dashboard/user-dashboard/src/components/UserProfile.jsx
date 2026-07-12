@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import QRCode from 'react-qr-code';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, UserIcon, GraduationCapIcon, PhoneIcon, MailIcon, LinkIcon, SettingsIcon, Camera, Upload, User } from "lucide-react";
+import { CalendarIcon, UserIcon, GraduationCapIcon, PhoneIcon, MailIcon, LinkIcon, SettingsIcon, Camera, Upload, User, Download, QrCode } from "lucide-react";
 import api from '../services/api';
 
 const UserProfile = ({ organizationId }) => {
@@ -142,6 +143,27 @@ const UserProfile = ({ organizationId }) => {
       // Reset file input
       event.target.value = '';
     }
+  };
+
+  const downloadQRCode = () => {
+    const svg = document.getElementById('user-attendance-qr');
+    if (!svg) return;
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    canvas.width = 300;
+    canvas.height = 300;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 300, 300);
+      ctx.drawImage(img, 0, 0, 300, 300);
+      const a = document.createElement('a');
+      a.download = `attendance-qr-${profile.username || 'user'}.png`;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    };
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
   const getProfilePictureUrl = () => {
@@ -575,6 +597,38 @@ const UserProfile = ({ organizationId }) => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Attendance QR Code */}
+      {profile.id && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              My Attendance QR Code
+            </CardTitle>
+            <CardDescription>
+              Show this QR code to your administrator to record your attendance score
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+            <div className="p-4 bg-white rounded-xl border shadow-sm">
+              <QRCode
+                id="user-attendance-qr"
+                value={JSON.stringify({ type: 'score', user_id: profile.id, org_id: organizationId || profile.current_organization_id })}
+                size={200}
+                level="M"
+              />
+            </div>
+            <p className="text-sm text-gray-500 text-center">
+              {profile.first_name} {profile.last_name} &mdash; @{profile.username}
+            </p>
+            <Button variant="outline" onClick={downloadQRCode} className="gap-2">
+              <Download className="h-4 w-4" />
+              Download QR Code
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex justify-end space-x-4">
         <Button variant="outline" onClick={fetchProfile}>

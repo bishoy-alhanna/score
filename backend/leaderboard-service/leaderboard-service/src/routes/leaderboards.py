@@ -1,209 +1,117 @@
 from flask import Blueprint, request, jsonify, current_app
 import jwt
 import json
+import logging
 import requests
-import sys
 from datetime import datetime
 from src.models.database import db, ScoreAggregate, Score, UserOrganization
 import os
 
 leaderboards_bp = Blueprint('leaderboards', __name__)
+logger = logging.getLogger(__name__)
 
 def fetch_organization_settings(organization_id, auth_token):
     """Fetch organization settings from auth service"""
     try:
-        print(f"DEBUG: Fetching organization settings for org: {organization_id}")
         auth_service_url = os.environ.get('AUTH_SERVICE_URL', 'http://auth-service:5000')
         headers = {
             'Authorization': f'Bearer {auth_token}',
             'Content-Type': 'application/json'
         }
-        
-        print(f"DEBUG: Calling {auth_service_url}/api/organizations")
         response = requests.get(
             f'{auth_service_url}/api/organizations',
             headers=headers,
             timeout=5
         )
-        
-        print(f"DEBUG: Organization settings response status: {response.status_code}")
-        print(f"DEBUG: Organization settings response: {response.text[:500]}")
-        
         if response.status_code == 200:
             response_data = response.json()
-            # The response is wrapped in an "organization" key
             org_data = response_data.get('organization', response_data)
-            settings = {
+            return {
                 'filter_enabled': org_data.get('filter_enabled', False),
                 'filter_start_date': org_data.get('filter_start_date'),
                 'filter_end_date': org_data.get('filter_end_date')
             }
-            print(f"DEBUG: Organization filter settings: {settings}")
-            return settings
+        logger.warning('Failed to fetch org settings: status %s', response.status_code)
     except Exception as e:
-        print(f"ERROR: Error fetching organization settings: {str(e)}")
-        import traceback
-        traceback.print_exc()
-    
-    print("DEBUG: Returning default filter settings (disabled)")
-    return {
-        'filter_enabled': False,
-        'filter_start_date': None,
-        'filter_end_date': None
-    }
+        logger.error('Error fetching organization settings: %s', e)
+
+    return {'filter_enabled': False, 'filter_start_date': None, 'filter_end_date': None}
 
 def verify_token_and_get_user():
     """Helper function to verify JWT token and return user info"""
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return None, {'error': 'Authorization header required'}, 401
-    
+
     token = auth_header.split(' ')[1]
     secret_key = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
-    
+
     try:
         payload = jwt.decode(token, secret_key, algorithms=['HS256'])
     except jwt.InvalidTokenError:
         return None, {'error': 'Invalid token'}, 401
-    
+
     return payload, None, None
 
 def fetch_user_details(user_ids, auth_token):
     """Fetch user details from user service"""
-    print(f"DEBUG: fetch_user_details called with user_ids: {user_ids}")
     if not user_ids:
         return {}
-    
-    try:
-        # Prepare headers
-        headers = {
-            'Authorization': f'Bearer {auth_token}',
-            'Content-Type': 'application/json'
-        }
-        
-        # Get user service URL from environment
-        user_service_url = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')
-        print(f"DEBUG: User service URL: {user_service_url}")
-        
-        user_details = {}
-        
-        # Fetch each user individually (since there's no bulk endpoint)
-        for user_id in user_ids:
-            try:
-                url = f'{user_service_url}/api/users/{user_id}'
-                print(f"DEBUG: Fetching user from: {url}")
-                response = requests.get(url, headers=headers, timeout=5)
-                print(f"DEBUG: User service response status: {response.status_code}")
-                print(f"DEBUG: User service response body: {response.text[:500]}")
-                
-                if response.status_code == 200:
-                    user_data = response.json().get('user', {})
-                    # Convert None values to empty strings using 'or' operator
-                    user_details[user_id] = {
-                        'first_name': user_data.get('first_name') or '',
-                        'last_name': user_data.get('last_name') or '',
-                        'username': user_data.get('username') or '',
-                        'email': user_data.get('email') or '',
-                        'profile_picture_url': user_data.get('profile_picture_url') or ''
-                    }
-                    print(f"DEBUG: Fetched user details for {user_id}: {user_details[user_id]}")
-                else:
-                    print(f"DEBUG: User fetch failed with status {response.status_code}")
-                    # Fallback for missing user
-                    user_details[user_id] = {
-                        'first_name': '',
-                        'last_name': '',
-                        'username': f'User {str(user_id)[:8]}',
-                        'email': '',
-                        'profile_picture_url': ''
-                    }
-            except Exception as e:
-                print(f"DEBUG: Error fetching user {user_id}: {str(e)}")
-                # Fallback for API errors
+
+    headers = {'Authorization': f'Bearer {auth_token}', 'Content-Type': 'application/json'}
+    user_service_url = os.environ.get('USER_SERVICE_URL', 'http://user-service:5000')
+    user_details = {}
+
+    for user_id in user_ids:
+        fallback = {'first_name': '', 'last_name': '', 'username': f'User {str(user_id)[:8]}', 'email': '', 'profile_picture_url': ''}
+        try:
+            response = requests.get(f'{user_service_url}/api/users/{user_id}', headers=headers, timeout=5)
+            if response.status_code == 200:
+                d = response.json().get('user', {})
                 user_details[user_id] = {
-                    'first_name': '',
-                    'last_name': '',
-                    'username': f'User {str(user_id)[:8]}',
-                    'email': '',
-                    'profile_picture_url': ''
+                    'first_name': d.get('first_name') or '',
+                    'last_name': d.get('last_name') or '',
+                    'username': d.get('username') or '',
+                    'email': d.get('email') or '',
+                    'profile_picture_url': d.get('profile_picture_url') or ''
                 }
-        
-        return user_details
-        
-    except Exception as e:
-        print(f"Error fetching user details: {str(e)}")
-        # Return fallback data
-        return {user_id: {
-            'first_name': '',
-            'last_name': '',
-            'username': f'User {str(user_id)[:8]}',
-            'email': ''
-        } for user_id in user_ids}
+            else:
+                logger.warning('User fetch returned %s for user %s', response.status_code, user_id)
+                user_details[user_id] = fallback
+        except Exception as e:
+            logger.error('Error fetching user %s: %s', user_id, e)
+            user_details[user_id] = fallback
+
+    return user_details
 
 def fetch_group_details(group_ids, auth_token):
     """Fetch group details from group service"""
-    print(f"DEBUG: fetch_group_details called with group_ids: {group_ids}")
-    
     if not group_ids:
         return {}
-    
-    try:
-        # Prepare headers
-        headers = {
-            'Authorization': f'Bearer {auth_token}',
-            'Content-Type': 'application/json'
-        }
-        
-        # Get group service URL from environment
-        group_service_url = os.environ.get('GROUP_SERVICE_URL', 'http://group-service:5003')
-        
-        group_details = {}
-        
-        # Fetch each group individually
-        for group_id in group_ids:
-            try:
-                url = f'{group_service_url}/api/groups/{group_id}'
-                response = requests.get(url, headers=headers, timeout=5)
-                
-                print(f"Group API call: {url}")
-                print(f"Auth token first 20 chars: {auth_token[:20]}...")
-                print(f"Headers: {headers}")
-                print(f"Response status: {response.status_code}")
-                print(f"Response body: {response.text}")
-                
-                if response.status_code == 200:
-                    group_data = response.json().get('group', {})
-                    group_details[group_id] = {
-                        'name': group_data.get('name', ''),
-                        'description': group_data.get('description', ''),
-                        'member_count': group_data.get('member_count', 0)
-                    }
-                else:
-                    print(f"API call failed, using fallback for group {group_id}")
-                    # Fallback for missing group
-                    group_details[group_id] = {
-                        'name': f'Group {str(group_id)[:8]}',
-                        'description': '',
-                        'member_count': 0
-                    }
-            except Exception as e:
-                # Fallback for API errors
+
+    headers = {'Authorization': f'Bearer {auth_token}', 'Content-Type': 'application/json'}
+    group_service_url = os.environ.get('GROUP_SERVICE_URL', 'http://group-service:5003')
+    group_details = {}
+
+    for group_id in group_ids:
+        fallback = {'name': f'Group {str(group_id)[:8]}', 'description': '', 'member_count': 0}
+        try:
+            response = requests.get(f'{group_service_url}/api/groups/{group_id}', headers=headers, timeout=5)
+            if response.status_code == 200:
+                d = response.json().get('group', {})
                 group_details[group_id] = {
-                    'name': f'Group {str(group_id)[:8]}',
-                    'description': '',
-                    'member_count': 0
+                    'name': d.get('name', ''),
+                    'description': d.get('description', ''),
+                    'member_count': d.get('member_count', 0)
                 }
-        
-        return group_details
-        
-    except Exception as e:
-        print(f"Error fetching group details: {str(e)}")
-        # Return fallback data
-        return {group_id: {
-            'name': f'Group {str(group_id)[:8]}',
-            'description': '',
-            'member_count': 0
-        } for group_id in group_ids}
+            else:
+                logger.warning('Group fetch returned %s for group %s', response.status_code, group_id)
+                group_details[group_id] = fallback
+        except Exception as e:
+            logger.error('Error fetching group %s: %s', group_id, e)
+            group_details[group_id] = fallback
+
+    return group_details
 
 def get_cache_key(organization_id, leaderboard_type, category='general'):
     """Generate cache key for leaderboard"""
@@ -237,51 +145,31 @@ def get_user_leaderboard():
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
-        
+
         organization_id = user_payload['organization_id']
-        print(f"DEBUG [get_user_leaderboard]: Using organization_id from JWT: {organization_id}")
-        sys.stdout.flush()
-        
         category = request.args.get('category', 'general')
         limit = int(request.args.get('limit', 50))
-        
-        # Get date range parameters
+
         start_date = request.args.get('start_date')  # Format: YYYY-MM-DD
         end_date = request.args.get('end_date')      # Format: YYYY-MM-DD
-        
-        print(f"DEBUG [get_user_leaderboard]: start_date={start_date}, end_date={end_date}, category={category}, limit={limit}")
-        sys.stdout.flush()
-        
+
         # If no explicit dates provided, check organization filter settings
         if not start_date and not end_date:
-            print("DEBUG: No explicit dates provided, checking organization settings...")
-            sys.stdout.flush()
             auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
-            print(f"DEBUG: Auth token extracted: {auth_token[:50]}...")
-            sys.stdout.flush()
             org_settings = fetch_organization_settings(organization_id, auth_token)
-            print(f"DEBUG: Organization settings received: {org_settings}")
-            sys.stdout.flush()
-            
             if org_settings['filter_enabled']:
                 start_date = org_settings['filter_start_date']
                 end_date = org_settings['filter_end_date']
-                print(f"DEBUG: Using organization filter dates: {start_date} to {end_date}")
-                sys.stdout.flush()
-        
-        # If date range is provided (either explicitly or from org settings), query Score table directly
+
         if start_date or end_date:
             from sqlalchemy import func
-            
-            # Parse dates
+            from datetime import timedelta
+
             start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
             end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
-            # Add one day to end_date to include the entire day
             if end_dt:
-                from datetime import timedelta
                 end_dt = end_dt + timedelta(days=1)
-            
-            # Build query for scores within date range
+
             score_query = db.session.query(
                 Score.user_id,
                 func.sum(Score.score_value).label('total_score'),
@@ -293,41 +181,25 @@ def get_user_leaderboard():
             ).filter(
                 Score.user_id.isnot(None)
             )
-            
-            # Filter to only include users who are active members of the organization
+
             member_subquery = db.session.query(UserOrganization.user_id).filter_by(
                 organization_id=organization_id,
                 is_active=True
             ).subquery()
             score_query = score_query.filter(Score.user_id.in_(member_subquery))
-            
-            print(f"DEBUG: Querying scores for organization_id: {organization_id}")
-            print(f"DEBUG: Filtering to only show active organization members")
-            sys.stdout.flush()
-            
-            # Apply date filters
+
             if start_dt:
                 score_query = score_query.filter(Score.created_at >= start_dt)
-                print(f"DEBUG: Applied start_date filter: >= {start_dt}")
-                sys.stdout.flush()
             if end_dt:
                 score_query = score_query.filter(Score.created_at < end_dt)
-                print(f"DEBUG: Applied end_date filter: < {end_dt}")
-                sys.stdout.flush()
-            
-            # Apply category filter
+
             if category != 'all':
                 score_query = score_query.filter_by(category=category)
-            
-            # Group by user and order by total score
+
             score_query = score_query.group_by(Score.user_id).order_by(
                 func.sum(Score.score_value).desc()
             ).limit(limit)
-            
-            print(f"DEBUG: Executing score query, expecting max {limit} results")
-            sys.stdout.flush()
-            
-            # Convert to list of objects
+
             user_aggregates = []
             for row in score_query.all():
                 class MockAggregate:
@@ -337,24 +209,19 @@ def get_user_leaderboard():
                         self.score_count = score_count or 0
                         self.average_score = float(average_score) if average_score else 0.0
                         self.last_updated = last_updated
-                
+
                 user_aggregates.append(MockAggregate(
                     row.user_id, row.total_score, row.score_count,
                     row.average_score, row.last_updated
                 ))
         else:
-            # No date range - use cache and aggregates as before
-            # Check cache first
             cache_key = get_cache_key(organization_id, 'users', category)
             cached_data = get_cached_leaderboard(cache_key)
             if cached_data:
-                # Apply limit to cached data
                 cached_data['leaderboard'] = cached_data['leaderboard'][:limit]
                 return jsonify(cached_data), 200
-            
-            # Query database
+
             if category == 'all':
-                # Aggregate scores across all categories for each user
                 from sqlalchemy import func
                 user_aggregates_query = db.session.query(
                     ScoreAggregate.user_id,
@@ -371,11 +238,9 @@ def get_user_leaderboard():
                 ).order_by(
                     func.sum(ScoreAggregate.total_score).desc()
                 ).limit(limit)
-                
-                # Convert to list of objects with proper attributes
+
                 user_aggregates = []
                 for row in user_aggregates_query.all():
-                    # Create a mock aggregate object
                     class MockAggregate:
                         def __init__(self, user_id, total_score, score_count, average_score, last_updated):
                             self.user_id = user_id
@@ -383,38 +248,33 @@ def get_user_leaderboard():
                             self.score_count = score_count or 0
                             self.average_score = float(average_score) if average_score else 0.0
                             self.last_updated = last_updated
-                    
+
                     user_aggregates.append(MockAggregate(
-                        row.user_id, row.total_score, row.score_count, 
+                        row.user_id, row.total_score, row.score_count,
                         row.average_score, row.last_updated
                     ))
             else:
                 user_aggregates = ScoreAggregate.query.filter_by(
                     organization_id=organization_id,
                     category=category
-            ).filter(
-                ScoreAggregate.user_id.isnot(None)
-            ).order_by(
-                ScoreAggregate.total_score.desc()
-            ).limit(limit).all()
-        
-        # Get user IDs for fetching details
+                ).filter(
+                    ScoreAggregate.user_id.isnot(None)
+                ).order_by(
+                    ScoreAggregate.total_score.desc()
+                ).limit(limit).all()
+
         user_ids = [aggregate.user_id for aggregate in user_aggregates]
-        
-        # Fetch user details from user service
         auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
         user_details = fetch_user_details(user_ids, auth_token)
-        
-        # Format leaderboard with user details
+
         leaderboard = []
         for rank, aggregate in enumerate(user_aggregates, 1):
             user_info = user_details.get(aggregate.user_id, {})
-            
-            # Build display name properly handling None values
+
             first_name = (user_info.get('first_name') or '').strip()
             last_name = (user_info.get('last_name') or '').strip()
             username = user_info.get('username') or ''
-            
+
             if first_name and last_name:
                 display_name = f"{first_name} {last_name}"
             elif first_name:
@@ -425,7 +285,7 @@ def get_user_leaderboard():
                 display_name = username
             else:
                 display_name = f'User {str(aggregate.user_id)[:8]}'
-            
+
             leaderboard.append({
                 'rank': rank,
                 'user_id': aggregate.user_id,
@@ -439,7 +299,7 @@ def get_user_leaderboard():
                 'average_score': aggregate.average_score,
                 'last_updated': aggregate.last_updated.isoformat() if aggregate.last_updated else None
             })
-        
+
         result = {
             'leaderboard_type': 'users',
             'category': category,
@@ -450,62 +310,47 @@ def get_user_leaderboard():
             'end_date': end_date if end_date else None,
             'filtered_by_date': bool(start_date or end_date)
         }
-        
-        # Only cache if not filtered by date
+
         if not (start_date or end_date):
             cache_leaderboard(cache_key, result)
-        
+
         return jsonify(result), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @leaderboards_bp.route('/groups', methods=['GET'])
 def get_group_leaderboard():
     """Get group leaderboard for organization with optional date range filtering"""
-    print("DEBUG: Group leaderboard endpoint called!")
-    sys.stdout.flush()
-    
     try:
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
-        
+
         organization_id = user_payload['organization_id']
         category = request.args.get('category', 'general')
         limit = int(request.args.get('limit', 50))
-        
-        # Get date range parameters
+
         start_date = request.args.get('start_date')  # Format: YYYY-MM-DD
         end_date = request.args.get('end_date')      # Format: YYYY-MM-DD
-        
+
         # If no explicit dates provided, check organization filter settings
         if not start_date and not end_date:
             auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
             org_settings = fetch_organization_settings(organization_id, auth_token)
-            
             if org_settings['filter_enabled']:
                 start_date = org_settings['filter_start_date']
                 end_date = org_settings['filter_end_date']
-        
-        print(f"DEBUG: Getting group leaderboard for org: {organization_id}, category: {category}, dates: {start_date} to {end_date}")
-        
-        # If date range is provided (either explicitly or from org settings), query Score table directly
+
         if start_date or end_date:
             from sqlalchemy import func, text
-            
-            # Parse dates
+            from datetime import timedelta
+
             start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
             end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
-            # Add one day to end_date to include the entire day
             if end_dt:
-                from datetime import timedelta
                 end_dt = end_dt + timedelta(days=1)
-            
-            # Use raw SQL to get all group scores (direct + manual + members)
-            # This is more reliable than complex ORM queries when models aren't available
-            
-            # Build filters for direct scores (no table alias in this CTE)
+
             direct_category_filter = ""
             direct_date_filters = ""
             if category != 'all':
@@ -514,8 +359,7 @@ def get_group_leaderboard():
                 direct_date_filters += f" AND created_at >= '{start_dt}'"
             if end_dt:
                 direct_date_filters += f" AND created_at < '{end_dt}'"
-            
-            # Build filters for member scores (with 's' alias for scores table)
+
             member_category_filter = ""
             member_date_filters = ""
             if category != 'all':
@@ -524,10 +368,10 @@ def get_group_leaderboard():
                 member_date_filters += f" AND s.created_at >= '{start_dt}'"
             if end_dt:
                 member_date_filters += f" AND s.created_at < '{end_dt}'"
-            
+
             raw_query = text(f"""
                 WITH direct_scores AS (
-                    SELECT 
+                    SELECT
                         group_id,
                         COALESCE(SUM(score_value), 0) as direct_score,
                         COUNT(id) as score_count,
@@ -541,11 +385,11 @@ def get_group_leaderboard():
                     GROUP BY group_id
                 ),
                 member_scores AS (
-                    SELECT 
+                    SELECT
                         gm.group_id,
                         COALESCE(SUM(s.score_value), 0) as member_score
                     FROM group_members gm
-                    LEFT JOIN scores s ON s.user_id = gm.user_id 
+                    LEFT JOIN scores s ON s.user_id = gm.user_id
                         AND s.organization_id = :org_id
                         {member_date_filters}
                         {member_category_filter}
@@ -558,10 +402,10 @@ def get_group_leaderboard():
                     UNION
                     SELECT DISTINCT group_id FROM member_scores
                 )
-                SELECT 
+                SELECT
                     ag.group_id,
-                    COALESCE(ds.direct_score, 0) + 
-                    COALESCE(ms.member_score, 0) + 
+                    COALESCE(ds.direct_score, 0) +
+                    COALESCE(ms.member_score, 0) +
                     COALESCE(g.manual_score, 0) as total_score,
                     COALESCE(ds.score_count, 0) as score_count,
                     ds.average_score,
@@ -573,15 +417,13 @@ def get_group_leaderboard():
                 ORDER BY total_score DESC
                 LIMIT :limit_val
             """)
-            
+
             try:
-                print(f"DEBUG: Executing raw SQL query for date-filtered group leaderboard")
                 result = db.session.execute(raw_query, {
                     'org_id': str(organization_id),
                     'limit_val': limit
                 })
-                
-                # Convert to list of mock aggregate objects
+
                 group_aggregates = []
                 class MockAggregate:
                     def __init__(self, group_id, total_score, score_count, average_score, last_updated):
@@ -590,34 +432,23 @@ def get_group_leaderboard():
                         self.score_count = score_count or 0
                         self.average_score = float(average_score) if average_score else 0.0
                         self.last_updated = last_updated
-                
+
                 for row in result:
-                    print(f"DEBUG: Processing row - group_id: {row.group_id}, total_score: {row.total_score}")
                     group_aggregates.append(MockAggregate(
                         row.group_id, int(row.total_score), row.score_count,
                         row.average_score, row.last_updated
                     ))
-                
-                print(f"DEBUG: Successfully processed {len(group_aggregates)} group aggregates")
             except Exception as e:
-                print(f"ERROR: Failed to execute raw SQL query: {str(e)}")
-                import traceback
-                traceback.print_exc()
+                logger.error('Failed to execute group leaderboard SQL: %s', e, exc_info=True)
                 return jsonify({'error': 'Failed to fetch group leaderboard'}), 500
         else:
-            # No date range - use cache and aggregates as before
-            # Check cache first
             cache_key = get_cache_key(organization_id, 'groups', category)
             cached_data = get_cached_leaderboard(cache_key)
             if cached_data:
-                print("DEBUG: Returning cached group leaderboard data")
-                # Apply limit to cached data
                 cached_data['leaderboard'] = cached_data['leaderboard'][:limit]
                 return jsonify(cached_data), 200
-            
-            # Query database
+
             if category == 'all':
-                # Aggregate scores across all categories for each group
                 from sqlalchemy import func
                 group_aggregates_query = db.session.query(
                     ScoreAggregate.group_id,
@@ -634,11 +465,9 @@ def get_group_leaderboard():
                 ).order_by(
                     func.sum(ScoreAggregate.total_score).desc()
                 ).limit(limit)
-                
-                # Convert to list of objects with proper attributes
+
                 group_aggregates = []
                 for row in group_aggregates_query.all():
-                    # Create a mock aggregate object
                     class MockAggregate:
                         def __init__(self, group_id, total_score, score_count, average_score, last_updated):
                             self.group_id = group_id
@@ -646,9 +475,9 @@ def get_group_leaderboard():
                             self.score_count = score_count or 0
                             self.average_score = float(average_score) if average_score else 0.0
                             self.last_updated = last_updated
-                    
+
                     group_aggregates.append(MockAggregate(
-                        row.group_id, row.total_score, row.score_count, 
+                        row.group_id, row.total_score, row.score_count,
                         row.average_score, row.last_updated
                     ))
             else:
@@ -660,25 +489,15 @@ def get_group_leaderboard():
                 ).order_by(
                     ScoreAggregate.total_score.desc()
                 ).limit(limit).all()
-        
-        print(f"DEBUG: Found {len(group_aggregates)} group aggregates")
-        
-        # Get group IDs for fetching details
+
         group_ids = [aggregate.group_id for aggregate in group_aggregates]
-        
-        print(f"DEBUG: Group IDs to fetch: {group_ids}")
-        
-        # Fetch group details from group service
         auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
         group_details = fetch_group_details(group_ids, auth_token)
-        
-        print(f"DEBUG: Fetched group details: {group_details}")
-        
-        # Format leaderboard with group details
+
         leaderboard = []
         for rank, aggregate in enumerate(group_aggregates, 1):
             group_info = group_details.get(aggregate.group_id, {})
-            
+
             leaderboard.append({
                 'rank': rank,
                 'group_id': aggregate.group_id,
@@ -690,7 +509,7 @@ def get_group_leaderboard():
                 'average_score': aggregate.average_score,
                 'last_updated': aggregate.last_updated.isoformat() if aggregate.last_updated else None
             })
-        
+
         result = {
             'leaderboard_type': 'groups',
             'category': category,
@@ -701,13 +520,12 @@ def get_group_leaderboard():
             'end_date': end_date if end_date else None,
             'filtered_by_date': bool(start_date or end_date)
         }
-        
-        # Only cache if not filtered by date
+
         if not (start_date or end_date):
             cache_leaderboard(cache_key, result)
-        
+
         return jsonify(result), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -718,37 +536,34 @@ def get_user_rank(user_id):
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
-        
+
         organization_id = user_payload['organization_id']
         category = request.args.get('category', 'general')
-        
-        # Get user's aggregate
+
         user_aggregate = ScoreAggregate.query.filter_by(
             user_id=user_id,
             organization_id=organization_id,
             category=category
         ).first()
-        
+
         if not user_aggregate:
             return jsonify({'error': 'User not found in leaderboard'}), 404
-        
-        # Count users with higher scores
+
         higher_scores = ScoreAggregate.query.filter(
             ScoreAggregate.organization_id == organization_id,
             ScoreAggregate.category == category,
             ScoreAggregate.user_id.isnot(None),
             ScoreAggregate.total_score > user_aggregate.total_score
         ).count()
-        
+
         rank = higher_scores + 1
-        
-        # Get total participants
+
         total_participants = ScoreAggregate.query.filter(
             ScoreAggregate.organization_id == organization_id,
             ScoreAggregate.category == category,
             ScoreAggregate.user_id.isnot(None)
         ).count()
-        
+
         return jsonify({
             'user_id': user_id,
             'rank': rank,
@@ -758,7 +573,7 @@ def get_user_rank(user_id):
             'total_participants': total_participants,
             'category': category
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -769,37 +584,34 @@ def get_group_rank(group_id):
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
-        
+
         organization_id = user_payload['organization_id']
         category = request.args.get('category', 'general')
-        
-        # Get group's aggregate
+
         group_aggregate = ScoreAggregate.query.filter_by(
             group_id=group_id,
             organization_id=organization_id,
             category=category
         ).first()
-        
+
         if not group_aggregate:
             return jsonify({'error': 'Group not found in leaderboard'}), 404
-        
-        # Count groups with higher scores
+
         higher_scores = ScoreAggregate.query.filter(
             ScoreAggregate.organization_id == organization_id,
             ScoreAggregate.category == category,
             ScoreAggregate.group_id.isnot(None),
             ScoreAggregate.total_score > group_aggregate.total_score
         ).count()
-        
+
         rank = higher_scores + 1
-        
-        # Get total participants
+
         total_participants = ScoreAggregate.query.filter(
             ScoreAggregate.organization_id == organization_id,
             ScoreAggregate.category == category,
             ScoreAggregate.group_id.isnot(None)
         ).count()
-        
+
         return jsonify({
             'group_id': group_id,
             'rank': rank,
@@ -809,7 +621,7 @@ def get_group_rank(group_id):
             'total_participants': total_participants,
             'category': category
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -820,29 +632,26 @@ def refresh_leaderboard_cache():
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
-        
-        # Check if user is ORG_ADMIN
+
         if user_payload.get('role') != 'ORG_ADMIN':
             return jsonify({'error': 'Only organization admins can refresh cache'}), 403
-        
+
         organization_id = user_payload['organization_id']
-        
-        # Clear cache for this organization
+
         redis_client = current_app.config.get('REDIS_CLIENT')
         if redis_client:
             try:
-                # Get all cache keys for this organization
                 pattern = f"leaderboard:{organization_id}:*"
                 keys = redis_client.keys(pattern)
                 if keys:
                     redis_client.delete(*keys)
             except:
                 pass  # Fail silently if Redis is unavailable
-        
+
         return jsonify({
             'message': 'Leaderboard cache refreshed successfully'
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -853,27 +662,23 @@ def get_leaderboard_categories():
         user_payload, error, status_code = verify_token_and_get_user()
         if error:
             return jsonify(error), status_code
-        
+
         organization_id = user_payload['organization_id']
-        
-        # Get distinct categories from score aggregates
+
         categories = db.session.query(ScoreAggregate.category).filter_by(
             organization_id=organization_id
         ).distinct().all()
-        
-        # Format the response
+
         category_list = [category[0] for category in categories if category[0]]
-        
-        # Add "all" as the first option to view combined scores
+
         if category_list:
             category_list = ['all'] + category_list
         else:
             category_list = ['all', 'general']
-        
+
         return jsonify({
             'categories': category_list
         }), 200
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-

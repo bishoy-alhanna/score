@@ -1,7 +1,10 @@
 from flask import Blueprint, request, jsonify
 import jwt
+import logging
 from src.models.database import db, Group, GroupMember
 import os
+
+logger = logging.getLogger(__name__)
 
 groups_bp = Blueprint('groups', __name__)
 
@@ -379,18 +382,14 @@ def get_members(group_id):
                         'last_name': user_row[4],
                         'full_name': f"{user_row[3] or ''} {user_row[4] or ''}".strip() or 'Unknown User'
                     }
-                    print(f"[DEBUG] Found user: {user_row[1]}")
                 else:
-                    print(f"[DEBUG] User not found: {member.user_id}")
                     member_dict['user'] = {
                         'id': str(member.user_id),
                         'username': 'Unknown',
                         'full_name': 'Unknown User'
                     }
             except Exception as e:
-                print(f"[WARNING] Failed to fetch user details for {member.user_id}: {str(e)}")
-                import traceback
-                print(traceback.format_exc())
+                logger.warning('Failed to fetch user details for %s: %s', member.user_id, e, exc_info=True)
                 member_dict['user'] = {
                     'id': str(member.user_id),
                     'username': 'Unknown',
@@ -399,19 +398,13 @@ def get_members(group_id):
             
             members_with_details.append(member_dict)
         
-        print(f"[DEBUG] Returning {len(members_with_details)} members with details")
-        print(f"[DEBUG] Sample member data: {members_with_details[0] if members_with_details else 'No members'}")
-        
         return jsonify({
             'members': members_with_details
         }), 200
-        
+
     except Exception as e:
-        import traceback
-        return jsonify({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
+        logger.error('Error fetching group members: %s', e, exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 @groups_bp.route('/<group_id>/members', methods=['POST'])
 def add_member(group_id):
@@ -448,25 +441,16 @@ def add_member(group_id):
         
         data = request.get_json()
         
-        # Debug logging
-        print(f"[DEBUG] POST /members request data: {data}")
-        print(f"[DEBUG] Request content-type: {request.content_type}")
-        print(f"[DEBUG] Request data raw: {request.data}")
-        
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
         if not data.get('user_id'):
-            print(f"[DEBUG] Missing user_id. Data keys: {list(data.keys())}")
             return jsonify({'error': 'User ID is required'}), 400
         
         user_id = data['user_id']
         role = data.get('role', 'MEMBER')
         
-        print(f"[DEBUG] Adding user {user_id} with role {role} to group {group_id}")
-        
         if role not in ['MEMBER', 'ADMIN']:
-            print(f"[DEBUG] Invalid role: {role}")
             return jsonify({'error': 'Invalid role'}), 400
         
         # Check if user is already a member
@@ -476,7 +460,6 @@ def add_member(group_id):
         ).first()
         
         if existing_member:
-            print(f"[DEBUG] User {user_id} is already a member (member_id: {existing_member.id})")
             return jsonify({'error': 'User is already a member of this group'}), 400
         
         # Add member
@@ -523,9 +506,6 @@ def remove_member(group_id, member_id_or_user_id):
         if not group:
             return jsonify({'error': 'Group not found'}), 404
         
-        # Try to find member by either member.id or user_id
-        print(f"[DEBUG] Attempting to remove member: {member_id_or_user_id} from group {group_id}")
-        
         member = GroupMember.query.filter_by(
             group_id=group_id,
             organization_id=organization_id
@@ -535,11 +515,8 @@ def remove_member(group_id, member_id_or_user_id):
         ).first()
         
         if not member:
-            print(f"[DEBUG] Member not found with id or user_id: {member_id_or_user_id}")
             return jsonify({'error': 'Member not found'}), 404
-        
-        print(f"[DEBUG] Found member: id={member.id}, user_id={member.user_id}")
-        
+
         # Check permissions
         is_group_admin = GroupMember.query.filter_by(
             group_id=group_id,
@@ -565,22 +542,15 @@ def remove_member(group_id, member_id_or_user_id):
         
         db.session.delete(member)
         db.session.commit()
-        
-        print(f"[DEBUG] Successfully removed member: {member_id_or_user_id}")
-        
+
         return jsonify({
             'message': 'Member removed successfully'
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
-        import traceback
-        print(f"[ERROR] Failed to remove member: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
+        logger.error('Failed to remove member: %s', e, exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 @groups_bp.route('/my-groups', methods=['GET'])
 def get_my_groups():

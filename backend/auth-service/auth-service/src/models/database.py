@@ -14,11 +14,6 @@ class Organization(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Global organization settings for score/leaderboard filtering
-    filter_start_date = db.Column(db.Date, nullable=True)  # Global start date for filtering
-    filter_end_date = db.Column(db.Date, nullable=True)    # Global end date for filtering
-    filter_enabled = db.Column(db.Boolean, default=False)  # Whether date filtering is enabled
-    
     # Relationships
     users = db.relationship('User', backref='organization', lazy=True, cascade='all, delete-orphan')
     
@@ -29,10 +24,7 @@ class Organization(db.Model):
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'user_count': len(self.users) if self.users else 0,
-            'filter_start_date': self.filter_start_date.isoformat() if self.filter_start_date else None,
-            'filter_end_date': self.filter_end_date.isoformat() if self.filter_end_date else None,
-            'filter_enabled': self.filter_enabled
+            'user_count': len(self.users) if self.users else 0
         }
 
 class User(db.Model):
@@ -84,6 +76,10 @@ class User(db.Model):
         """Check if user is an organization admin"""
         return self.role == 'ORG_ADMIN'
     
+    def is_servant(self):
+        """Check if user is a servant"""
+        return self.role == 'SERVANT'
+    
     def can_manage_organization(self, org_id):
         """Check if user can manage a specific organization"""
         if self.is_super_admin():
@@ -91,6 +87,32 @@ class User(db.Model):
         if self.is_org_admin() and str(self.organization_id) == str(org_id):
             return True
         return False
+    
+    def can_manage_group(self, group_id):
+        """Check if user can manage a specific group (for servants)"""
+        if self.is_super_admin() or self.is_org_admin():
+            return True
+        if self.is_servant():
+            # Check if servant is assigned to this group
+            assignment = ServantGroupAssignment.query.filter_by(
+                servant_user_id=self.id,
+                group_id=group_id,
+                is_active=True
+            ).first()
+            return assignment is not None
+        return False
+    
+    def get_assigned_groups(self):
+        """Get all groups assigned to this servant"""
+        if not self.is_servant():
+            return []
+        
+        assignments = ServantGroupAssignment.query.filter_by(
+            servant_user_id=self.id,
+            is_active=True
+        ).all()
+        
+        return [assignment.group for assignment in assignments if assignment.group]
     
     def generate_qr_code_token(self, expires_in_hours=24):
         """Generate a new QR code token for the user"""
@@ -269,6 +291,52 @@ class QRScanLog(db.Model):
             'scanned_at': self.scanned_at.isoformat() if self.scanned_at else None
         }
 
+class ServantGroupAssignment(db.Model):
+    """Assigns SERVANT role users to groups they are responsible for managing"""
+    __tablename__ = 'servant_group_assignments'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    servant_user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    group_id = db.Column(db.String(36), db.ForeignKey('groups.id'), nullable=False)
+    organization_id = db.Column(db.String(36), db.ForeignKey('organizations.id'), nullable=False)
+    assigned_by_user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    servant_user = db.relationship('User', foreign_keys=[servant_user_id], backref='servant_assignments')
+    group = db.relationship('Group', backref='servant_assignments')
+    organization = db.relationship('Organization', backref='servant_assignments')
+    assigned_by = db.relationship('User', foreign_keys=[assigned_by_user_id])
+    
+    # Indexes and constraints
+    __table_args__ = (
+        db.UniqueConstraint('servant_user_id', 'group_id', name='unique_servant_per_group'),
+        db.Index('idx_servant_user', 'servant_user_id'),
+        db.Index('idx_servant_group', 'group_id'),
+        db.Index('idx_servant_org', 'organization_id'),
+        db.Index('idx_servant_active', 'is_active'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'servant_user_id': self.servant_user_id,
+            'servant_username': self.servant_user.username if self.servant_user else None,
+            'servant_email': self.servant_user.email if self.servant_user else None,
+            'group_id': self.group_id,
+            'group_name': self.group.name if self.group else None,
+            'group_description': self.group.description if self.group else None,
+            'organization_id': self.organization_id,
+            'organization_name': self.organization.name if self.organization else None,
+            'assigned_by_user_id': self.assigned_by_user_id,
+            'assigned_by_username': self.assigned_by.username if self.assigned_by else None,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
 # Super Admin configuration
 class SuperAdminConfig:
     """Configuration for super admin account"""
@@ -298,9 +366,11 @@ class SuperAdminConfig:
             
             db.session.add(super_admin)
             db.session.commit()
-            print(f"Super admin created: {cls.USERNAME}")
+            import logging
+            logging.getLogger(__name__).info('Super admin created: %s', cls.USERNAME)
         else:
-            print(f"Super admin already exists: {cls.USERNAME}")
+            import logging
+            logging.getLogger(__name__).info('Super admin already exists: %s', cls.USERNAME)
         
         return super_admin
 

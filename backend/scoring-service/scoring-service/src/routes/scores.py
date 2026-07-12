@@ -1,10 +1,25 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import jwt
+import logging
 from src.models.database import db, Score, ScoreAggregate, ScoreCategory
 from sqlalchemy import func, text
 import os
 
 scores_bp = Blueprint('scores', __name__)
+logger = logging.getLogger(__name__)
+
+def invalidate_leaderboard_cache(organization_id):
+    """Delete all leaderboard cache entries for this org so the next request is fresh."""
+    redis_client = current_app.config.get('REDIS_CLIENT')
+    if not redis_client:
+        return
+    try:
+        pattern = f"leaderboard:{organization_id}:*"
+        keys = redis_client.keys(pattern)
+        if keys:
+            redis_client.delete(*keys)
+    except Exception as e:
+        logger.warning('Failed to invalidate leaderboard cache for org %s: %s', organization_id, e)
 
 def verify_token_and_get_user():
     """Helper function to verify JWT token and return user info"""
@@ -31,7 +46,7 @@ def get_group_manual_score(group_id):
         ).fetchone()
         return result[0] if result else 0
     except Exception as e:
-        print(f"Error fetching group manual score: {e}")
+        logger.error('Error fetching group manual score: %s', e)
         return 0
 
 def calculate_group_members_score_sum(group_id, category, organization_id):
@@ -59,7 +74,7 @@ def calculate_group_members_score_sum(group_id, category, organization_id):
         
         return total
     except Exception as e:
-        print(f"Error calculating group members score sum: {e}")
+        logger.error('Error calculating group members score sum: %s', e)
         return 0
 
 def update_score_aggregate(user_id=None, group_id=None, category='general', organization_id=None):
@@ -184,10 +199,13 @@ def assign_score():
                 organization_id=organization_id,
                 is_active=True
             ).first()
-            
+
             if not score_category:
                 return jsonify({'error': 'Invalid category ID'}), 400
-            
+
+            # Sync the category string to the category's name so aggregates are correct
+            category = score_category.name
+
             # Validate score doesn't exceed max
             if score_value > score_category.max_score:
                 return jsonify({
@@ -240,12 +258,13 @@ def assign_score():
                 )
         
         db.session.commit()
-        
+        invalidate_leaderboard_cache(organization_id)
+
         return jsonify({
             'message': 'Score assigned successfully',
             'score': score.to_dict()
         }), 201
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -324,34 +343,58 @@ def update_score(score_id):
             return jsonify({'error': 'Score not found'}), 404
         
         data = request.get_json()
-        
-        # Update allowed fields
+
+        # Track old category before any changes (needed to recompute old aggregate)
+        old_category = score.category
+
         if 'score_value' in data:
             try:
                 score.score_value = int(data['score_value'])
             except ValueError:
                 return jsonify({'error': 'Score value must be an integer'}), 400
-        
+
         if 'description' in data:
             score.description = data['description']
-        
+
+        if 'category_id' in data:
+            new_category_id = data['category_id']
+            score_category = ScoreCategory.query.filter_by(
+                id=new_category_id,
+                organization_id=organization_id,
+                is_active=True
+            ).first()
+            if not score_category:
+                return jsonify({'error': 'Invalid category ID'}), 400
+            score.category_id = new_category_id
+            score.category = score_category.name
+
         db.session.flush()
-        
-        # Update aggregates
+
+        # If category changed, recompute the old category's aggregate first
+        if score.category != old_category:
+            update_score_aggregate(
+                user_id=score.user_id,
+                group_id=score.group_id,
+                category=old_category,
+                organization_id=organization_id
+            )
+
+        # Recompute the (possibly new) category's aggregate
         update_score_aggregate(
             user_id=score.user_id,
             group_id=score.group_id,
             category=score.category,
             organization_id=organization_id
         )
-        
+
         db.session.commit()
-        
+        invalidate_leaderboard_cache(organization_id)
+
         return jsonify({
             'message': 'Score updated successfully',
             'score': score.to_dict()
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -396,11 +439,12 @@ def delete_score(score_id):
         )
         
         db.session.commit()
-        
+        invalidate_leaderboard_cache(organization_id)
+
         return jsonify({
             'message': 'Score deleted successfully'
         }), 200
-        
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -451,9 +495,6 @@ def get_user_total_score(user_id):
             return jsonify(error), status_code
         
         organization_id = user_payload['organization_id']
-        
-        # DEBUG: Print what we're filtering by
-        print(f"DEBUG SCORING: Getting scores for user_id: {user_id}, organization_id: {organization_id}")
         
         # Get total score for user
         total = db.session.query(func.sum(Score.score_value)).filter_by(
