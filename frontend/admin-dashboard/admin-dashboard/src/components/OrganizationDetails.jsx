@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowLeft, Users, UserPlus, Search, Shield, UserMinus, Edit } from 'lucide-react';
+import { ArrowLeft, Users, UserPlus, Search, Shield, UserMinus, Edit, Download } from 'lucide-react';
 
 const OrganizationDetails = ({ organizationId, onBack }) => {
   const [organization, setOrganization] = useState(null);
@@ -11,6 +11,7 @@ const OrganizationDetails = ({ organizationId, onBack }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState('USER');
+  const [downloadingQrCodes, setDownloadingQrCodes] = useState(false);
 
   // API configuration
   const api = axios.create({
@@ -97,6 +98,31 @@ const OrganizationDetails = ({ organizationId, onBack }) => {
     } catch (error) {
       console.error('Error removing member:', error);
       setError(error.response?.data?.error || 'Failed to remove member');
+    }
+  };
+
+  const downloadQrCodes = async () => {
+    try {
+      setDownloadingQrCodes(true);
+      const response = await api.get(`/super-admin/organizations/${organizationId}/users/qr-codes-pdf`, {
+        responseType: 'blob'
+      });
+
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${organization.name.replace(/\s+/g, '_')}_qr_codes.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setError('');
+    } catch (error) {
+      console.error('Error downloading QR codes:', error);
+      setError('Failed to download QR codes');
+    } finally {
+      setDownloadingQrCodes(false);
     }
   };
 
@@ -187,6 +213,15 @@ const OrganizationDetails = ({ organizationId, onBack }) => {
             >
               <UserPlus className="h-4 w-4 mr-2" />
               Add Member
+            </button>
+            <button
+              onClick={downloadQrCodes}
+              disabled={downloadingQrCodes || organization.members.length === 0}
+              className="flex items-center px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Download a printable PDF with every member's QR code"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {downloadingQrCodes ? 'Preparing PDF...' : 'Download QR Codes'}
             </button>
             <button
               onClick={toggleOrganizationStatus}

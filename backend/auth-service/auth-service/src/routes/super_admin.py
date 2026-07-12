@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 import jwt
 import logging
 from sqlalchemy.orm import joinedload
@@ -7,7 +7,10 @@ from src.models.database_multi_org import (
     OrganizationJoinRequest, SuperAdminConfig
 )
 import os
+import io
+import json
 import uuid
+import qrcode
 from datetime import datetime
 import bcrypt
 
@@ -297,6 +300,129 @@ def get_organization_details(organization_id):
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def _generate_user_qr_image(user_id, username, organization_id):
+    """Generate a long-lived QR code (PNG) for printed badges, signed the same way as self-service QR codes"""
+    secret_key = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key-change-in-production')
+    qr_payload = {
+        'user_id': str(user_id),
+        'username': username,
+        'organization_id': str(organization_id),
+        # Printed badges need to keep scanning for years, not hours
+        'exp': datetime.utcnow().timestamp() + (10 * 365 * 24 * 3600),
+        'iat': datetime.utcnow().timestamp(),
+        'type': 'qr_code'
+    }
+    qr_token = jwt.encode(qr_payload, secret_key, algorithm='HS256')
+
+    qr_data = {
+        'token': qr_token,
+        'user_id': str(user_id),
+        'username': username,
+        'organization_id': str(organization_id)
+    }
+
+    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+    qr.add_data(json.dumps(qr_data))
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+
+    image_buffer = io.BytesIO()
+    img.save(image_buffer, format='PNG')
+    image_buffer.seek(0)
+    return image_buffer
+
+
+def _build_qr_codes_pdf(members, organization_id, organization_name):
+    """Lay out one printable QR badge per user on a letter-size PDF grid"""
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import inch
+    from reportlab.lib.utils import ImageReader
+
+    pdf_buffer = io.BytesIO()
+    page_width, page_height = letter
+    c = canvas.Canvas(pdf_buffer, pagesize=letter)
+
+    cols, rows = 3, 3
+    margin = 0.5 * inch
+    header_height = 0.4 * inch
+    cell_width = (page_width - 2 * margin) / cols
+    cell_height = (page_height - 2 * margin - header_height) / rows
+    qr_size = min(cell_width, cell_height) - 0.8 * inch
+
+    def draw_header():
+        c.setFont('Helvetica-Bold', 14)
+        c.drawCentredString(page_width / 2, page_height - margin, organization_name)
+
+    draw_header()
+
+    per_page = cols * rows
+    for index, member in enumerate(members):
+        slot = index % per_page
+        if index > 0 and slot == 0:
+            c.showPage()
+            draw_header()
+
+        col = slot % cols
+        row = slot // cols
+
+        cell_x = margin + col * cell_width
+        cell_top = page_height - margin - header_height - row * cell_height
+
+        qr_image = ImageReader(_generate_user_qr_image(member.id, member.username, organization_id))
+        qr_x = cell_x + (cell_width - qr_size) / 2
+        qr_y = cell_top - qr_size - 0.15 * inch
+        c.drawImage(qr_image, qr_x, qr_y, width=qr_size, height=qr_size)
+
+        full_name = f"{member.first_name or ''} {member.last_name or ''}".strip() or member.username
+        c.setFont('Helvetica-Bold', 10)
+        c.drawCentredString(cell_x + cell_width / 2, qr_y - 14, full_name[:30])
+        c.setFont('Helvetica', 8)
+        c.drawCentredString(cell_x + cell_width / 2, qr_y - 26, f"@{member.username}")
+
+    c.save()
+    pdf_buffer.seek(0)
+    return pdf_buffer
+
+
+@super_admin_bp.route('/organizations/<organization_id>/users/qr-codes-pdf', methods=['GET'])
+def download_organization_qr_codes(organization_id):
+    """Download a printable PDF containing a QR code badge for every user in the organization"""
+    admin = verify_super_admin_token()
+    if not admin:
+        return jsonify({'error': 'Super admin authentication required'}), 401
+
+    try:
+        organization = Organization.query.filter_by(id=organization_id).first()
+        if not organization:
+            return jsonify({'error': 'Organization not found'}), 404
+
+        members = db.session.query(
+            User.id, User.username, User.first_name, User.last_name
+        ).join(
+            UserOrganization, User.id == UserOrganization.user_id
+        ).filter(
+            UserOrganization.organization_id == organization_id,
+            UserOrganization.is_active == True
+        ).order_by(User.last_name, User.first_name).all()
+
+        if not members:
+            return jsonify({'error': 'No users found in this organization'}), 404
+
+        pdf_buffer = _build_qr_codes_pdf(members, organization_id, organization.name)
+
+        safe_name = ''.join(ch if ch.isalnum() else '_' for ch in organization.name).strip('_') or 'organization'
+        return send_file(
+            pdf_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'{safe_name}_qr_codes.pdf'
+        )
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 @super_admin_bp.route('/organizations/<organization_id>/toggle-status', methods=['POST'])
 def toggle_organization_status(organization_id):

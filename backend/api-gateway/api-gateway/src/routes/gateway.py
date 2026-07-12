@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 import requests
 import jwt
 import os
@@ -121,6 +121,15 @@ def proxy_request(service_url, path='', method=None):
         else:
             return jsonify({'error': 'Method not allowed'}), 405
         
+        content_type = response.headers.get('Content-Type', '')
+        if 'application/json' not in content_type:
+            # Binary payload (e.g. PDF download) - pass it through untouched instead of parsing as JSON
+            passthrough_headers = {}
+            if 'Content-Disposition' in response.headers:
+                passthrough_headers['Content-Disposition'] = response.headers['Content-Disposition']
+            return Response(response.content, status=response.status_code,
+                             content_type=content_type, headers=passthrough_headers)
+
         return response.json(), response.status_code
     except requests.exceptions.RequestException as e:
         return jsonify({'error': f'Service unavailable: {str(e)}'}), 503
